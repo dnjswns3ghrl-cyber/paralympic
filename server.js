@@ -324,8 +324,8 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ── SPA 폴백 라우트 ──────────────────────────────────────────────────────────
-// 문자열 '*'를 사용하여 에러 발생 가능성을 원천 차단합니다.
-app.get('*', (req, res) => {
+// 최신 Express v5+ 규격에 맞는 와일드카드 표현식으로 변경합니다.
+app.get('(.*)*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
