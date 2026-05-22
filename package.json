@@ -1,0 +1,16 @@
+{
+  "name": "paralympic",
+  "version": "1.0.0",
+  "description": "패럴림픽 - 개인 커뮤니티 사이트",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "fs-extra": "^11.2.0",
+    "sql.js": "^1.12.0"
+  }
+}

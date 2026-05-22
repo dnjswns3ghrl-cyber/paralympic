@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>패럴림픽</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg0:#ffffff;--bg1:#f7f8fa;--bg2:#eef0f3;
+  --tx0:#1a1a1a;--tx1:#555;--tx2:#999;
+  --bd:rgba(0,0,0,0.1);--bd2:rgba(0,0,0,0.2);
+  --ac:#2563eb;--ac2:#1d4ed8;--ac-bg:#eff6ff;--ac-tx:#1d4ed8;
+  --dn:#dc2626;--dn-bg:#fef2f2;--dn-tx:#b91c1c;
+  --hot-bg:#fff7ed;--hot-tx:#c2410c;
+  --ntc-bg:#fef9c3;--ntc-tx:#854d0e;
+  --sh:0 1px 4px rgba(0,0,0,0.07);
+}
+[data-theme="dark"] {
+  --bg0:#1c1c1e;--bg1:#2c2c2e;--bg2:#141414;
+  --tx0:#f0f0f0;--tx1:#aaa;--tx2:#666;
+  --bd:rgba(255,255,255,0.1);--bd2:rgba(255,255,255,0.2);
+  --ac:#3b82f6;--ac2:#60a5fa;--ac-bg:#1e3a5f;--ac-tx:#93c5fd;
+  --dn:#ef4444;--dn-bg:#3f1f1f;--dn-tx:#fca5a5;
+  --hot-bg:#3d1f0d;--hot-tx:#fb923c;
+  --ntc-bg:#3d3000;--ntc-tx:#fde68a;
+  --sh:0 1px 4px rgba(0,0,0,0.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg2);color:var(--tx0);font-size:14px;line-height:1.6;transition:background .2s,color .2s}
+
+/* Header */
+.hd{background:var(--bg0);border-bottom:1px solid var(--bd);padding:0 1.25rem;display:flex;align-items:center;gap:1rem;height:54px;position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.logo{font-size:20px;font-weight:700;color:var(--tx0);cursor:pointer;text-decoration:none;letter-spacing:-.5px}
+.logo span{color:var(--ac)}
+.srch{flex:1;max-width:300px;position:relative}
+.srch i{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--tx2);font-size:15px;pointer-events:none}
+.srch input{width:100%;height:34px;padding:0 10px 0 32px;border:1px solid var(--bd);border-radius:8px;background:var(--bg1);color:var(--tx0);font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+.srch input:focus{border-color:var(--ac)}
+.hdr{margin-left:auto;display:flex;align-items:center;gap:8px}
+.thm{width:36px;height:36px;border:1px solid var(--bd);border-radius:8px;background:var(--bg1);color:var(--tx1);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;transition:all .15s}
+.thm:hover{background:var(--bg2);color:var(--tx0)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;border:1px solid var(--bd);background:var(--bg1);color:var(--tx0);transition:all .15s;text-decoration:none}
+.btn:hover{background:var(--bg2)}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn.pri:hover{background:var(--ac2);border-color:var(--ac2)}
+
+/* Nav */
+.nav{background:var(--bg0);border-bottom:1px solid var(--bd);display:flex;padding:0 1.25rem;overflow-x:auto}
+.nav::-webkit-scrollbar{display:none}
+.tab{font-size:13px;font-weight:500;padding:12px 16px;cursor:pointer;border-bottom:2.5px solid transparent;color:var(--tx1);white-space:nowrap;transition:color .15s,border-color .15s;user-select:none}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.tab:hover:not(.on){color:var(--tx0)}
+
+/* Layout */
+.wrap{max-width:980px;margin:0 auto;padding:14px 12px}
+.row{display:flex;gap:12px;align-items:flex-start}
+.col{flex:1;min-width:0}
+.side{width:210px;flex-shrink:0;position:sticky;top:68px}
+
+/* Card */
+.card{background:var(--bg0);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:var(--sh);margin-bottom:10px}
+.ctop{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bd);font-weight:500;font-size:14px}
+
+/* Post list */
+.plist{list-style:none}
+.pi{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .1s}
+.pi:last-child{border-bottom:none}
+.pi:hover{background:var(--bg1)}
+.badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;letter-spacing:.3px}
+.badge.n{background:var(--ac-bg);color:var(--ac-tx)}
+.badge.h{background:var(--hot-bg);color:var(--hot-tx)}
+.ptit{flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx0)}
+.ptit .cm{color:var(--ac);font-size:12px;margin-left:3px}
+.ptit .ig{color:var(--tx2);font-size:12px;margin-left:4px}
+.pmeta{font-size:11px;color:var(--tx2);display:flex;gap:10px;flex-shrink:0}
+.pmeta .up{color:var(--ac);font-weight:500}
+
+/* Pager */
+.pgr{display:flex;justify-content:center;gap:4px;padding:12px}
+.pb{width:30px;height:30px;border-radius:7px;border:1px solid var(--bd);background:var(--bg0);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--tx1);font-family:inherit;transition:all .1s}
+.pb.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.pb:hover:not(.on){background:var(--bg1)}
+
+/* Gallery */
+.ggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px}
+.gi{aspect-ratio:1;border-radius:8px;background:var(--bg1);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--bd);transition:transform .15s,box-shadow .15s}
+.gi:hover{transform:scale(1.03);box-shadow:0 4px 12px rgba(0,0,0,0.12)}
+.gov{position:absolute;inset:0;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .15s;display:flex;align-items:flex-end;padding:8px}
+.gi:hover .gov{opacity:1}
+.gov span{font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Post detail */
+.bk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--tx1);cursor:pointer;padding:6px 0 8px;transition:color .1s}
+.bk:hover{color:var(--ac)}
+.pdet{background:var(--bg0);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:var(--sh)}
+.pdh{padding:18px 18px 14px;border-bottom:1px solid var(--bd)}
+.pdtit{font-size:18px;font-weight:700;margin-bottom:8px}
+.pdmeta{font-size:12px;color:var(--tx1);display:flex;gap:14px;flex-wrap:wrap}
+.pdbody{padding:20px 18px;font-size:14px;line-height:1.9;min-height:140px;border-bottom:1px solid var(--bd);white-space:pre-wrap}
+.vrow{display:flex;gap:10px;justify-content:center;padding:16px;border-bottom:1px solid var(--bd)}
+.vbtn{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:500;padding:9px 28px;border-radius:8px;border:1px solid var(--bd);background:var(--bg1);cursor:pointer;color:var(--tx0);font-family:inherit;transition:all .15s}
+.vbtn.up:hover:not(:disabled){background:var(--ac-bg);color:var(--ac-tx);border-color:var(--ac)}
+.vbtn.dn:hover:not(:disabled){background:var(--dn-bg);color:var(--dn-tx);border-color:var(--dn)}
+.vbtn.up.voted{background:var(--ac-bg);color:var(--ac-tx);border-color:var(--ac)}
+.vbtn.dn.voted{background:var(--dn-bg);color:var(--dn-tx);border-color:var(--dn)}
+.vbtn:disabled{opacity:.6;cursor:default}
+
+/* Comments */
+.csec{padding:16px 18px}
+.chd{font-size:14px;font-weight:700;margin-bottom:14px}
+.ci{padding:10px 0;border-bottom:1px solid var(--bd)}
+.ci:last-of-type{border-bottom:none}
+.cnick{font-size:12px;font-weight:500;color:var(--tx1);margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.cnick time{font-weight:400;color:var(--tx2);font-size:11px}
+.ctxt{font-size:13px;line-height:1.7}
+.cform{display:flex;gap:8px;margin-top:14px}
+.cform input{flex:1;height:38px;padding:0 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg1);color:var(--tx0);font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+.cform input:focus{border-color:var(--ac)}
+.csub{height:38px;padding:0 16px;border-radius:8px;border:none;background:var(--ac);color:#fff;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s}
+.csub:hover{background:var(--ac2)}
+
+/* Write */
+.wcard{background:var(--bg0);border:1px solid var(--bd);border-radius:12px;padding:20px;box-shadow:var(--sh)}
+.wcard h2{font-size:16px;font-weight:700;margin-bottom:14px}
+.wcard input[type=text],.wcard textarea{width:100%;border:1px solid var(--bd);border-radius:8px;background:var(--bg1);color:var(--tx0);font-family:inherit;outline:none;font-size:14px;transition:border-color .15s}
+.wcard input[type=text]:focus,.wcard textarea:focus{border-color:var(--ac)}
+.wcard input[type=text]{height:40px;padding:0 12px;margin-bottom:10px}
+.wcard .nick-row{display:flex;gap:8px;margin-bottom:10px}
+.wcard .nick-row input{flex:1;height:40px;padding:0 12px}
+.wcard textarea{padding:12px;height:200px;resize:vertical;line-height:1.7}
+.wtbar{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+/* Sidebar */
+.sc{background:var(--bg0);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--sh)}
+.stit{font-size:11px;font-weight:700;color:var(--tx1);margin-bottom:10px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.5px}
+.sl{list-style:none}
+.sl li{font-size:12px;padding:6px 0;border-bottom:1px solid var(--bd);color:var(--tx0);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.sl li:last-child{border-bottom:none}
+.sl li:hover{color:var(--ac)}
+.sl li .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sl li .n{color:var(--tx2);font-size:11px;flex-shrink:0}
+.nb{display:inline-flex;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--ntc-bg);color:var(--ntc-tx);margin-right:4px;flex-shrink:0;letter-spacing:.3px}
+
+/* Misc */
+.empty{padding:40px;text-align:center;color:var(--tx2);font-size:13px}
+.loading{padding:30px;text-align:center;color:var(--tx2)}
+.hidden{display:none!important}
+.nick-inp{font-size:13px;max-width:120px}
+
+@media(max-width:680px){
+  .side{display:none}
+  .row{display:block}
+  .ggrid{grid-template-columns:repeat(3,1fr)}
+  .pmeta{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="logo" onclick="goHome()">패럴림<span>픽</span></div>
+  <div class="srch">
+    <i class="ti ti-search"></i>
+    <input type="text" id="sinp" placeholder="검색어를 입력하세요" autocomplete="off" />
+  </div>
+  <div class="hdr">
+    <button class="thm" id="thmbtn" title="다크모드 전환" aria-label="다크모드 전환">
+      <i class="ti ti-moon" id="thmico"></i>
+    </button>
+    <button class="btn" onclick="showView('write')"><i class="ti ti-pencil"></i> 글쓰기</button>
+  </div>
+</header>
+
+<nav class="nav">
+  <div class="tab on" data-tab="all" onclick="switchTab('all')">전체글</div>
+  <div class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 인기글</div>
+  <div class="tab" data-tab="gallery" onclick="switchTab('gallery')">갤러리</div>
+  <div class="tab" data-tab="notice" onclick="switchTab('notice')">공지사항</div>
+</nav>
+
+<div class="wrap">
+  <div class="row">
+    <div class="col">
+
+      <!-- 목록 -->
+      <div id="vlist">
+        <div class="card">
+          <div class="ctop">
+            <span id="blabel">자유게시판</span>
+            <button class="btn" onclick="showView('write')"><i class="ti ti-pencil"></i> 글쓰기</button>
+          </div>
+          <ul class="plist" id="pul"></ul>
+          <div class="pgr" id="pgr"></div>
+        </div>
+      </div>
+
+      <!-- 갤러리 -->
+      <div id="vgal" class="hidden">
+        <div class="card">
+          <div class="ctop"><span>이미지 갤러리</span></div>
+          <div class="ggrid" id="ggrid"></div>
+        </div>
+      </div>
+
+      <!-- 상세 -->
+      <div id="vpost" class="hidden">
+        <div class="bk" onclick="goBack()"><i class="ti ti-arrow-left"></i> 목록으로</div>
+        <div class="pdet">
+          <div class="pdh">
+            <div class="pdtit" id="dtit"></div>
+            <div class="pdmeta">
+              <span id="dnick"></span>
+              <span id="ddate"></span>
+              <span>조회 <span id="dview">0</span></span>
+            </div>
+          </div>
+          <div class="pdbody" id="dbody"></div>
+          <div class="vrow">
+            <button class="vbtn up" id="vup" onclick="vote('up')"><i class="ti ti-thumb-up"></i> 추천 <span id="vupcnt">0</span></button>
+            <button class="vbtn dn" id="vdn" onclick="vote('down')"><i class="ti ti-thumb-down"></i> 비추천 <span id="vdncnt">0</span></button>
+          </div>
+          <div class="csec">
+            <div class="chd">댓글 <span id="ccnt">0</span>개</div>
+            <div id="clist"></div>
+            <div class="cform">
+              <input type="text" id="cinp" placeholder="댓글을 입력하세요 (Enter)" />
+              <button class="csub" onclick="submitComment()">등록</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 글쓰기 -->
+      <div id="vwrite" class="hidden">
+        <div class="bk" onclick="goBack()"><i class="ti ti-arrow-left"></i> 돌아가기</div>
+        <div class="wcard">
+          <h2>새 글 작성</h2>
+          <div class="nick-row">
+            <input type="text" class="nick-inp" id="wnick" placeholder="닉네임 (선택)" maxlength="20" />
+          </div>
+          <input type="text" id="wtit" placeholder="제목을 입력하세요" maxlength="100" />
+          <textarea id="wbody" placeholder="내용을 입력하세요..."></textarea>
+          <div class="wtbar">
+            <button class="btn" onclick="goBack()">취소</button>
+            <button class="btn pri" onclick="submitPost()"><i class="ti ti-send"></i> 등록</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <aside class="side">
+      <div class="sc">
+        <div class="stit"><i class="ti ti-flame" style="color:#fb923c;font-size:14px"></i> 실시간 인기글</div>
+        <ul class="sl" id="hotlist"></ul>
+      </div>
+      <div class="sc">
+        <div class="stit"><i class="ti ti-speakerphone" style="font-size:14px"></i> 공지사항</div>
+        <ul class="sl">
+          <li><span class="nb">공지</span><span class="t">이용규칙 안내</span></li>
+          <li><span class="nb">공지</span><span class="t">광고·도배 금지</span></li>
+          <li><span class="nb">공지</span><span class="t">비방·욕설 금지</span></li>
+        </ul>
+      </div>
+      <div class="sc">
+        <div class="stit"><i class="ti ti-chart-bar" style="font-size:14px"></i> 통계</div>
+        <ul class="sl">
+          <li><span class="t">오늘 게시글</span><span class="n" id="sttoday">-</span></li>
+          <li><span class="t">전체 게시글</span><span class="n" id="sttotal">-</span></li>
+          <li><span class="t">전체 댓글</span><span class="n" id="stcmt">-</span></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const API = '';  // 같은 서버
+
+// ── 다크모드 ──────────────────────────────────────────────────────────────────
+const html = document.documentElement;
+const thmbtn = document.getElementById('thmbtn');
+const thmico = document.getElementById('thmico');
+let theme = localStorage.getItem('theme') || 'light';
+applyTheme(theme);
+
+function applyTheme(t) {
+  html.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+  thmico.className = t === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+  thmbtn.title = t === 'dark' ? '라이트모드' : '다크모드';
+  theme = t;
+}
+thmbtn.addEventListener('click', () => applyTheme(theme === 'dark' ? 'light' : 'dark'));
+
+// ── 상태 ──────────────────────────────────────────────────────────────────────
+let curView = 'list', curTab = 'all', curPage = 1, curPostId = null, curVote = null, searchQ = '';
+
+const EMOJIS = ['🌅','🌃','🐱','🌸','🍜','🎮','⛰️','🌊','🎵','🌿','🦋','🍕'];
+const COLORS = ['#dbeafe','#dcfce7','#fef9c3','#fce7f3','#f0fdf4','#eff6ff','#fef2f2','#f0fdfa'];
+
+// ── 뷰 전환 ──────────────────────────────────────────────────────────────────
+function showView(v) {
+  ['list','gal','post','write'].forEach(n => document.getElementById('v'+n).classList.toggle('hidden', n !== v));
+  curView = v;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function goHome() { switchTab('all'); }
+function goBack() { showView(curTab === 'gallery' ? 'gal' : 'list'); }
+
+// ── 탭 ───────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  curTab = tab; curPage = 1; searchQ = '';
+  document.getElementById('sinp').value = '';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
+  if (tab === 'gallery') { showView('gal'); loadGallery(); return; }
+  if (tab === 'notice') {
+    showView('list');
+    document.getElementById('blabel').textContent = '공지사항';
+    document.getElementById('pul').innerHTML = '<div class="empty">공지사항이 없습니다.</div>';
+    document.getElementById('pgr').innerHTML = '';
+    return;
+  }
+  document.getElementById('blabel').textContent = tab === 'hot' ? '🔥 인기글' : '자유게시판';
+  showView('list');
+  loadPosts();
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(url, opts={}) {
+  const r = await fetch(API + url, { headers:{'Content-Type':'application/json'}, ...opts });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ── 게시글 목록 ───────────────────────────────────────────────────────────────
+async function loadPosts(page = curPage) {
+  curPage = page;
+  const ul = document.getElementById('pul');
+  ul.innerHTML = '<div class="loading"><i class="ti ti-loader-2"></i> 로딩 중...</div>';
+  try {
+    const params = new URLSearchParams({ tab: curTab, page, q: searchQ });
+    const { posts, total, perPage } = await apiFetch(`/api/posts?${params}`);
+    ul.innerHTML = '';
+    if (!posts.length) { ul.innerHTML = '<div class="empty">게시글이 없습니다.</div>'; document.getElementById('pgr').innerHTML=''; return; }
+    posts.forEach(p => {
+      const li = document.createElement('li');
+      li.className = 'pi';
+      li.onclick = () => openPost(p.id);
+      li.innerHTML = `
+        <span class="badge ${p.hot?'h':'n'}">${p.hot?'HOT':'일반'}</span>
+        <span class="ptit">${esc(p.title)}${p.has_img?'<i class="ti ti-photo ig"></i>':''}${p.comment_count>0?`<span class="cm">[${p.comment_count}]</span>`:''}</span>
+        <span class="pmeta">
+          <span>${esc(p.nick)}</span>
+          <span>${fmtDate(p.created_at)}</span>
+          <span class="up"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
+          <span>${p.views}</span>
+        </span>`;
+      ul.appendChild(li);
+    });
+    renderPager(Math.ceil(total/perPage), page, total);
+  } catch(e) { ul.innerHTML = `<div class="empty">오류: ${e.message}</div>`; }
+}
+
+function renderPager(totalPages, cur, total) {
+  const div = document.getElementById('pgr');
+  div.innerHTML = '';
+  if (totalPages <= 1) return;
+  const mk = (html, page, on=false) => {
+    const b = document.createElement('button');
+    b.className = 'pb' + (on?' on':'');
+    b.innerHTML = html;
+    b.onclick = () => loadPosts(page);
+    return b;
+  };
+  div.appendChild(mk('<i class="ti ti-chevrons-left" style="font-size:12px"></i>', 1));
+  for (let i=1; i<=totalPages; i++) div.appendChild(mk(i, i, i===cur));
+  div.appendChild(mk('<i class="ti ti-chevrons-right" style="font-size:12px"></i>', totalPages));
+}
+
+// ── 갤러리 ───────────────────────────────────────────────────────────────────
+async function loadGallery() {
+  const grid = document.getElementById('ggrid');
+  grid.innerHTML = '<div class="loading" style="grid-column:1/-1"><i class="ti ti-loader-2"></i> 로딩 중...</div>';
+  try {
+    const { posts } = await apiFetch('/api/posts?tab=all&page=1');
+    grid.innerHTML = '';
+    const items = [...posts.slice(0,4).map((p,i)=>({id:p.id,title:p.title,emoji:EMOJIS[i],color:COLORS[i]}))];
+    for(let i=0;i<8;i++) items.push({id:null,title:`갤러리 사진 ${i+1}`,emoji:EMOJIS[(i+4)%EMOJIS.length],color:COLORS[(i+4)%COLORS.length]});
+    items.forEach(g => {
+      const div = document.createElement('div');
+      div.className = 'gi';
+      div.style.background = g.color;
+      div.innerHTML = `${g.emoji}<div class="gov"><span>${esc(g.title)}</span></div>`;
+      if (g.id) div.onclick = () => { switchTab('all'); openPost(g.id); };
+      grid.appendChild(div);
+    });
+  } catch(e) { grid.innerHTML = `<div class="empty" style="grid-column:1/-1">오류: ${e.message}</div>`; }
+}
+
+// ── 게시글 상세 ───────────────────────────────────────────────────────────────
+async function openPost(id) {
+  curPostId = id; curVote = null;
+  document.getElementById('dtit').textContent = '로딩 중...';
+  document.getElementById('dbody').textContent = '';
+  document.getElementById('clist').innerHTML = '';
+  showView('post');
+  try {
+    const { post, comments } = await apiFetch(`/api/posts/${id}`);
+    document.getElementById('dtit').textContent = post.title;
+    document.getElementById('dnick').textContent = post.nick;
+    document.getElementById('ddate').textContent = fmtDate(post.created_at);
+    document.getElementById('dview').textContent = post.views;
+    document.getElementById('dbody').textContent = post.body;
+    document.getElementById('vupcnt').textContent = post.up;
+    document.getElementById('vdncnt').textContent = post.down;
+    document.getElementById('vup').className = 'vbtn up';
+    document.getElementById('vdn').className = 'vbtn dn';
+    document.getElementById('vup').disabled = false;
+    document.getElementById('vdn').disabled = false;
+    renderComments(comments);
+    loadStats();
+  } catch(e) { document.getElementById('dtit').textContent = '오류: ' + e.message; }
+}
+
+// ── 댓글 ─────────────────────────────────────────────────────────────────────
+function renderComments(cmts) {
+  const el = document.getElementById('clist');
+  document.getElementById('ccnt').textContent = cmts.length;
+  el.innerHTML = '';
+  if (!cmts.length) { el.innerHTML = '<div class="empty" style="padding:16px 0">첫 댓글을 남겨보세요!</div>'; return; }
+  cmts.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'ci';
+    d.innerHTML = `<div class="cnick">${esc(c.nick)} <time>${fmtDate(c.created_at)}</time></div><div class="ctxt">${esc(c.body)}</div>`;
+    el.appendChild(d);
+  });
+}
+
+async function submitComment() {
+  const inp = document.getElementById('cinp');
+  const body = inp.value.trim();
+  if (!body || !curPostId) return;
+  inp.disabled = true;
+  try {
+    await apiFetch(`/api/posts/${curPostId}/comments`, {
+      method:'POST', body: JSON.stringify({ body, nick: '익명' })
+    });
+    inp.value = '';
+    const { post, comments } = await apiFetch(`/api/posts/${curPostId}`);
+    renderComments(comments);
+    loadPosts(curPage);
+    loadHot();
+    loadStats();
+  } catch(e) { alert('오류: ' + e.message); }
+  finally { inp.disabled = false; inp.focus(); }
+}
+
+// ── 추천/비추천 ───────────────────────────────────────────────────────────────
+async function vote(type) {
+  if (!curPostId || curVote) return;
+  curVote = type;
+  try {
+    const res = await apiFetch(`/api/posts/${curPostId}/vote`, { method:'POST', body: JSON.stringify({type}) });
+    document.getElementById('vupcnt').textContent = res.up;
+    document.getElementById('vdncnt').textContent = res.down;
+    if (type === 'up') {
+      document.getElementById('vup').className = 'vbtn up voted';
+      document.getElementById('vdn').disabled = true;
+    } else {
+      document.getElementById('vdn').className = 'vbtn dn voted';
+      document.getElementById('vup').disabled = true;
+    }
+    loadPosts(curPage); loadHot();
+  } catch(e) { curVote = null; alert('오류: ' + e.message); }
+}
+
+// ── 글쓰기 ───────────────────────────────────────────────────────────────────
+async function submitPost() {
+  const title = document.getElementById('wtit').value.trim();
+  const body = document.getElementById('wbody').value.trim();
+  const nick = document.getElementById('wnick').value.trim() || '익명';
+  if (!title) { alert('제목을 입력해주세요.'); return; }
+  if (!body) { alert('내용을 입력해주세요.'); return; }
+  try {
+    const post = await apiFetch('/api/posts', { method:'POST', body: JSON.stringify({title, body, nick}) });
+    document.getElementById('wtit').value = '';
+    document.getElementById('wbody').value = '';
+    document.getElementById('wnick').value = '';
+    switchTab('all');
+    loadStats();
+  } catch(e) { alert('오류: ' + e.message); }
+}
+
+// ── 사이드바 ──────────────────────────────────────────────────────────────────
+async function loadHot() {
+  try {
+    const { posts } = await apiFetch('/api/posts?tab=hot&page=1');
+    const ul = document.getElementById('hotlist');
+    ul.innerHTML = '';
+    posts.slice(0,5).forEach(p => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="t">${esc(p.title)}</span><span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>`;
+      li.onclick = () => openPost(p.id);
+      ul.appendChild(li);
+    });
+  } catch(e) {}
+}
+
+async function loadStats() {
+  try {
+    const s = await apiFetch('/api/stats');
+    document.getElementById('sttoday').textContent = s.today;
+    document.getElementById('sttotal').textContent = s.total;
+    document.getElementById('stcmt').textContent = s.comments;
+  } catch(e) {}
+}
+
+// ── 검색 ─────────────────────────────────────────────────────────────────────
+let searchTimer;
+document.getElementById('sinp').addEventListener('input', function() {
+  searchQ = this.value.trim();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { curPage = 1; loadPosts(); showView('list'); }, 300);
+});
+document.getElementById('cinp').addEventListener('keydown', e => { if(e.key==='Enter') submitComment(); });
+
+// ── 유틸 ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(s) {
+  const d = new Date(s);
+  return d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/\.\s*/g,'/').trim();
+}
+
+// ── 초기화 ────────────────────────────────────────────────────────────────────
+loadPosts();
+loadHot();
+loadStats();
+</script>
+</body>
+</html>
