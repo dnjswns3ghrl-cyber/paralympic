@@ -61,7 +61,7 @@ async function initDB() {
     )
   `);
 
-  // 3. 댓글 테이블 (댓글 추천/비추천 컬럼 up, down 추가)
+  // 3. 댓글 테이블
   db.run(`
     CREATE TABLE IF NOT EXISTS comments (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +76,7 @@ async function initDB() {
     )
   `);
 
-  // 4. 게시글 중복 추천 방지 테이블 (무한 투표 차단용)
+  // 4. 게시글 중복 추천 방지 테이블
   db.run(`
     CREATE TABLE IF NOT EXISTS votes (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +98,7 @@ async function initDB() {
     )
   `);
 
-  // 하위 호환용 컬럼/테이블 예외 예방 처리
+  // 하위 호환용 컬럼 예외 처리
   try { db.exec("SELECT tag FROM posts LIMIT 1"); } catch (e) {
     try { db.run("ALTER TABLE posts ADD COLUMN tag TEXT NOT NULL DEFAULT '잡담'"); } catch(err){}
   }
@@ -183,7 +183,6 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, token, user: { username: user.username, nickname: user.nickname, role: user.role } });
 });
 
-// 게시글 목록
 app.get('/api/posts', (req, res) => {
   const { tab = 'all', page = 1, q = '', tag = '' } = req.query;
   const perPage = 10;
@@ -203,7 +202,6 @@ app.get('/api/posts', (req, res) => {
   res.json({ posts, total, page: parseInt(page), perPage });
 });
 
-// 게시글 상세
 app.get('/api/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
   run('UPDATE posts SET views = views + 1 WHERE id = ?', [id]);
@@ -213,7 +211,6 @@ app.get('/api/posts/:id', (req, res) => {
   res.json({ post: posts[0], comments });
 });
 
-// 게시글 작성
 app.post('/api/posts', authenticateToken, (req, res) => {
   const { title, body, tag = '잡담' } = req.body;
   if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: '제목과 내용을 적어주세요.' });
@@ -223,7 +220,6 @@ app.post('/api/posts', authenticateToken, (req, res) => {
   res.status(201).json({ id });
 });
 
-// 댓글 작성
 app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   const postId = parseInt(req.params.id);
   const { body } = req.body;
@@ -233,23 +229,20 @@ app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   res.status(201).json({ success: true });
 });
 
-// ★ [수정] 게시글 추천(개추)/비추천 중복 차단 구현
 app.post('/api/posts/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body; 
   if (!['up', 'down'].includes(type) || !uuid) return res.status(400).json({ error: '올바르지 않은 요청입니다.' });
 
-  // 중복 기록 조회
   const exist = query('SELECT type FROM votes WHERE post_id = ? AND uuid = ?', [id, uuid]);
   if (exist.length > 0) {
     return res.status(400).json({ error: `이미 이 게시글에 ${exist[0].type === 'up' ? '개추' : '비추'}를 누르셨습니다.` });
   }
 
-  // 투표 기록 보관 및 카운트 가산
   try {
     run('INSERT INTO votes (post_id, uuid, type) VALUES (?, ?, ?)', [id, uuid, type]);
     run(`UPDATE posts SET ${type} = ${type} + 1 WHERE id = ?`, [id]);
-    run('UPDATE posts SET hot = 1 WHERE id = ? AND up >= 5', [id]); // 개추 5개 이상 시 실시간 인기 등록
+    run('UPDATE posts SET hot = 1 WHERE id = ? AND up >= 5', [id]);
     const updated = query('SELECT up, down FROM posts WHERE id = ?', [id])[0];
     res.json(updated);
   } catch (e) {
@@ -257,7 +250,6 @@ app.post('/api/posts/:id/vote', (req, res) => {
   }
 });
 
-// ★ [신규] 댓글 추천/비추천 중복 차단 API
 app.post('/api/comments/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
@@ -297,14 +289,14 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// ── ⚠️ [핵심 버그 수정] SPA 라우터 순서 교정 예외 처리 ───────────────────────────
-// /api로 들어오는 모든 가짜/에러 요청은 절대 index.html로 우회하지 않고 즉시 404 JSON을 뱉도록 완벽 격리합니다.
-app.use('/api', (req, res) => {
-  res.status(404).json({ error: '존재하지 않는 API 엔드포인트이거나 처리할 수 없는 가로채기 오류입니다.' });
+// ── ⚠️ [핵심 수정] 최신 규격에 맞게 라우팅 매칭 조건 변경 ─────────────────────
+// 최신 path-to-regexp 라이브러리는 단독 '*'를 허용하지 않으므로 '/api/*' 형태로 가두어 처리합니다.
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
 });
 
-// /api가 아닌 프론트엔드 일반 주소만 index.html을 던져 줍니다.
-app.get('*', (req, res) => {
+// SPA 프론트엔드 라우팅 폴백도 단독 '*' 대신 최신 규격 규정인 '(.*)' 문법을 사용하여 에러를 원천 차단합니다.
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
