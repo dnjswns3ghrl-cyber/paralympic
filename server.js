@@ -43,13 +43,14 @@ async function initDB() {
     )
   `);
 
-  // 2. 게시글 테이블 생성 (누가 썼는지 알기 위해 user_id 추가)
+  // 2. 게시글 테이블 생성 (★말머리 tag 컬럼 추가)
   db.run(`
     CREATE TABLE IF NOT EXISTS posts (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER,
       title      TEXT NOT NULL,
       body       TEXT NOT NULL,
+      tag        TEXT NOT NULL DEFAULT '잡담',
       nick       TEXT NOT NULL DEFAULT '익명',
       up         INTEGER DEFAULT 0,
       down       INTEGER DEFAULT 0,
@@ -60,7 +61,20 @@ async function initDB() {
     )
   `);
 
-  // 3. 댓글 테이블 생성 (누가 썼는지 알기 위해 user_id 추가)
+  // [중요] 기존 DB를 쓰는 환경에서 tag 컬럼이 누락되어 발생하는 에러를 방지하기 위한 안전 코드
+  try {
+    db.exec("SELECT tag FROM posts LIMIT 1");
+  } catch (e) {
+    // tag 컬럼이 없어서 에러가 난 경우 수동으로 추가해 줌
+    try {
+      db.run("ALTER TABLE posts ADD COLUMN tag TEXT NOT NULL DEFAULT '잡담'");
+      console.log('📝 기존 posts 테이블에 tag(말머리) 컬럼 추가 완료');
+    } catch (err) {
+      console.error("⚠️ 컬럼 추가 실패:", err);
+    }
+  }
+
+  // 3. 댓글 테이블 생성
   db.run(`
     CREATE TABLE IF NOT EXISTS comments (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,10 +87,10 @@ async function initDB() {
     )
   `);
 
-  // [중요] 최고 관리자 계정이 없으면 자동으로 1개 생성 (ID: admin / PW: admin1234)
+  // 최고 관리자 계정이 없으면 자동으로 1개 생성 (ID: admin / PW: admin1234)
   const adminCheck = db.exec("SELECT COUNT(*) as cnt FROM users WHERE role='ADMIN'")[0].values[0][0];
   if (adminCheck === 0) {
-    const hashedAdminPw = bcrypt.hashSync('admin1234', 10); // 비밀번호 암호화
+    const hashedAdminPw = bcrypt.hashSync('admin1234', 10);
     db.run(
       "INSERT INTO users (username, password, nickname, role) VALUES (?, ?, ?, ?)",
       ['admin', hashedAdminPw, '최고관리자', 'ADMIN']
@@ -89,13 +103,13 @@ async function initDB() {
   const count = db.exec('SELECT COUNT(*) as cnt FROM posts')[0].values[0][0];
   if (count === 0) {
     const samples = [
-      ['안녕하세요, 처음 가입했어요!', '이 커뮤니티 처음 가입했는데 잘 부탁드립니다.\n앞으로 많은 이야기 나눠요 :)', '익명고양이', 12, 1, 128, 1],
-      ['오늘 점심 뭐 먹었나요? 저는 마라탕 먹었어요', '마라탕 정말 맛있었는데 너무 매워서 혼났습니다...\n여러분은 점심 뭐 드셨어요?', '도넛러버', 8, 0, 64, 1]
+      ['안녕하세요, 처음 가입했어요!', '이 커뮤니티 처음 가입했는데 잘 부탁드립니다.\n앞으로 많은 이야기 나눠요 :)', '잡담', '익명고양이', 12, 1, 128, 1],
+      ['오늘 점심 뭐 먹었나요? 저는 마라탕 먹었어요', '마라탕 정말 맛있었는데 너무 매워서 혼났습니다...\n여러분은 점심 뭐 드셨어요?', '잡담', '도넛러버', 8, 0, 64, 1]
     ];
-    for (const [title, body, nick, up, down, views, hot] of samples) {
+    for (const [title, body, tag, nick, up, down, views, hot] of samples) {
       db.run(
-        'INSERT INTO posts (title, body, nick, up, down, views, hot) VALUES (?,?,?,?,?,?,?)',
-        [title, body, nick, up, down, views, hot]
+        'INSERT INTO posts (title, body, tag, nick, up, down, views, hot) VALUES (?,?,?,?,?,?,?,?)',
+        [title, body, tag, nick, up, down, views, hot]
       );
     }
     saveDB();
@@ -137,14 +151,14 @@ function run(sql, params = []) {
 // 1. 로그인한 사람인지 확인하는 미들웨어
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // 헤더에서 토큰 글자만 쏙 빼오기
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) return res.status(401).json({ error: '로그인이 필요합니다.' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: '출입증이 올바르지 않습니다.' });
-    req.user = user; // 유저 정보 저장 (id, username, role, nickname)
-    next(); // 통과! 다음 일 하러 가세요.
+    req.user = user;
+    next();
   });
 }
 
@@ -153,7 +167,7 @@ function isAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'ADMIN') {
     return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
   }
-  next(); // 통과! 관리자가 맞군요.
+  next();
 }
 
 
@@ -166,11 +180,9 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: '모든 칸을 입력해 주세요.' });
   }
 
-  // 아이디 중복 확인
   const exist = query('SELECT * FROM users WHERE username = ?', [username.trim()]);
   if (exist.length > 0) return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
 
-  // 비밀번호 안전하게 분쇄하기(암호화)
   const hashedPassword = bcrypt.hashSync(password, 10);
 
   run('INSERT INTO users (username, password, nickname) VALUES (?, ?, ?)', [
@@ -191,11 +203,9 @@ app.post('/api/auth/login', (req, res) => {
   
   const user = users[0];
   
-  // 비밀번호 맞는지 확인
   const isMatch = bcrypt.compareSync(password, user.password);
   if (!isMatch) return res.status(400).json({ error: '아이디 또는 비밀번호가 틀렸습니다.' });
 
-  // 하루짜리 출입증(JWT 토큰) 만들기
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role, nickname: user.nickname },
     JWT_SECRET,
@@ -212,7 +222,7 @@ app.post('/api/auth/login', (req, res) => {
 
 // ── 📝 API 라우트: 커뮤니티 기능 ─────────────────────────────────────────────────
 
-// 게시글 목록 보기
+// 게시글 목록 보기 (p.tag 데이터도 포함하여 프론트로 전달)
 app.get('/api/posts', (req, res) => {
   const { tab = 'all', page = 1, q = '' } = req.query;
   const perPage = 10;
@@ -229,7 +239,7 @@ app.get('/api/posts', (req, res) => {
 
   const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where}`, params)[0]?.cnt || 0;
   const posts = query(
-    `SELECT p.id, p.title, p.nick, p.up, p.down, p.views, p.hot, p.has_img, p.created_at,
+    `SELECT p.id, p.title, p.tag, p.nick, p.up, p.down, p.views, p.hot, p.has_img, p.created_at,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count
      FROM posts p WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
     [...params, perPage, offset]
@@ -248,17 +258,26 @@ app.get('/api/posts/:id', (req, res) => {
   res.json({ post: posts[0], comments });
 });
 
-// 게시글 작성 (로그인한 회원만 가능하게 authenticateToken 미들웨어 추가)
+// ★ 게시글 작성 (말머리 저장 및 공지사항 권한 보안검사 기능 추가)
 app.post('/api/posts', authenticateToken, (req, res) => {
-  const { title, body } = req.body;
+  const { title, body, tag = '잡담' } = req.body;
   if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: '제목과 내용을 적어주세요.' });
   
-  // 로그인한 사람의 정보(req.user)를 사용해 저장
-  const id = run('INSERT INTO posts (user_id, title, body, nick) VALUES (?,?,?,?)', [
+  // 허용된 말머리 범위 검증
+  const allowedTags = ['잡담', '사진', '질문', '공지'];
+  const finalTag = allowedTags.includes(tag) ? tag : '잡담';
+
+  // [보안 조치] 말머리가 '공지'인데 유저의 권한이 ADMIN이 아니면 거부 처리
+  if (finalTag === '공지' && req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: '공지사항은 최고 관리자 권한이 필요합니다.' });
+  }
+
+  const id = run('INSERT INTO posts (user_id, title, body, tag, nick) VALUES (?,?,?,?,?)', [
     req.user.id,
     title.trim(),
     body.trim(),
-    req.user.nickname // 자동으로 유저의 닉네임이 들어감
+    finalTag,
+    req.user.nickname
   ]);
   
   if (!id) return res.status(500).json({ error: '데이터 저장 실패' });
@@ -267,7 +286,7 @@ app.post('/api/posts', authenticateToken, (req, res) => {
   res.status(201).json(posts[0]);
 });
 
-// 댓글 작성 (로그인한 회원만 가능하게 authenticateToken 미들웨어 추가)
+// 댓글 작성
 app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   const postId = parseInt(req.params.id);
   const { body } = req.body;
@@ -276,7 +295,7 @@ app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   const id = run('INSERT INTO comments (post_id, user_id, nick, body) VALUES (?,?,?,?)', [
     postId,
     req.user.id,
-    req.user.nickname, // 자동으로 유저의 닉네임이 들어감
+    req.user.nickname,
     body.trim()
   ]);
   
@@ -300,7 +319,7 @@ app.post('/api/posts/:id/vote', (req, res) => {
 
 // ── 👑 API 라우트: 관리자 전용 기능 ───────────────────────────────────────────────
 
-// 게시글 강제 삭제 (로그인도 해야하고, 관리자여야 통과됨)
+// 게시글 강제 삭제
 app.delete('/api/admin/posts/:id', authenticateToken, isAdmin, (req, res) => {
   const postId = parseInt(req.params.id);
   run('DELETE FROM posts WHERE id = ?', [postId]);
@@ -324,8 +343,12 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ── SPA 폴백 라우트 ──────────────────────────────────────────────────────────
-// app.get 대신 app.use를 사용하여 최신 Express v5+의 PathError를 원천 차단합니다.
+// 특정 도메인 주소 매칭 대신 미들웨어 차단 방식을 사용하여 백엔드-프론트엔드 라우팅 간 충돌 및 JSON 파싱 에러를 완벽 방지합니다.
 app.use((req, res, next) => {
+  // 만약 API 요쳥(/api)인데 매칭되는 라우트가 없다면 백엔드에서 404 JSON 에러를 던져서 HTML 파싱 오류를 차단합니다.
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
