@@ -178,8 +178,8 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// ── SPA 폴백 라우트 수정 (최신 Express 대응) ──────────────────────────────────────────
-app.get('(.*)', (req, res) => {
+// ── SPA 폴백 라우트 수정 (Express 5 버그 완전 방지형) ──────────────────────────────────────────
+app.get(/.* /, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
