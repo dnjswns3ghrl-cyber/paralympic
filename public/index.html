@@ -25,7 +25,6 @@
 * { margin:0; padding:0; box-sizing:border-box; font-family:'Noto Sans KR', sans-serif; }
 body { background: var(--bg1); color: var(--tx0); transition: background 0.2s, color 0.2s; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
 
-/* ★ PC 모니터에서도 시원하고 넓게 보이도록 가로폭을 900px로 확장 및 그림자 고도화 */
 header { width:100%; max-width:900px; padding:20px; display:flex; justify-content:space-between; align-items:center; background: var(--bg0); border-bottom:1px solid var(--bd); position:sticky; top:0; z-index:10; }
 header h1 { font-size:22px; font-weight:700; cursor:pointer; color: var(--ac); display:flex; align-items:center; gap:6px; }
 .header-right { display:flex; align-items:center; gap:12px; }
@@ -37,7 +36,6 @@ button { cursor:pointer; border:none; background:none; color: var(--tx0); displa
 main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; }
 .card { background: var(--bg0); border:1px solid var(--bd); border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 4px 6px rgba(0,0,0,0.02); }
 
-/* 탭 레이아웃 */
 .tab-container { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
 .nav-tabs { display:flex; flex-wrap:wrap; gap:8px; }
 .tab { padding:8px 18px; border-radius:20px; background: var(--bg2); font-size:14px; font-weight:500; color: var(--tx1); transition:0.2s; }
@@ -48,7 +46,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .search-bar i { color: var(--tx2); margin-right:8px; font-size:16px; }
 .search-bar input { flex:1; background:none; border:none; padding:12px 0; color: var(--tx0); outline:none; font-size:15px; }
 
-/* 기존 순정 리스트 격자 레이아웃 원복 */
 .post-list { list-style:none; }
 .post-list li { display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--bd); cursor:pointer; }
 .post-list li:last-child { border-bottom:none; }
@@ -61,7 +58,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .pager button { padding:8px 16px; border-radius:6px; background: var(--bg2); color: var(--tx1); font-weight:500; }
 .pager button:disabled { opacity:0.4; cursor:default; }
 
-/* FAB 버튼 PC 해상도 위치 최적화 */
 .fab { position:fixed; bottom:30px; left:calc(50% + 380px); width:56px; height:56px; border-radius:50%; background: var(--ac); color:#fff; font-size:26px; box-shadow:0 6px 14px rgba(37,99,235,0.3); transition: transform 0.2s; }
 @media(max-width:960px) { .fab { left:auto; right:25px; } }
 .fab:hover { transform: scale(1.05); background: var(--ac2); }
@@ -242,7 +238,7 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
       
       <div style="background:var(--bg1); border-radius:8px; padding:15px; display:flex; justify-content:space-around; margin-bottom:25px; font-size:13px;">
         <div><div style="color:var(--tx2);margin-bottom:4px">오늘 쓴 글</div><b id="sttoday" style="font-size:16px">0</b></div>
-        <div style="border-left:1px solid var(--bd toggleAuthBox)"></div>
+        <div style="border-left:1px solid var(--bd)"></div>
         <div><div style="color:var(--tx2);margin-bottom:4px">전체 게시글</div><b id="sttotal" style="font-size:16px">0</b></div>
         <div style="border-left:1px solid var(--bd)"></div>
         <div><div style="color:var(--tx2);margin-bottom:4px">누적 댓글</div><b id="stcmt" style="font-size:16px">0</b></div>
@@ -256,11 +252,9 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 <button class="fab" id="fabBtn" onclick="clickFab()"><i class="ti ti-plus"></i></button>
 
 <script>
-// ★ 도메인이 깨져서 HTML 에러가 나는 현상을 완벽하게 봉쇄하는 절대 경로 주소 세팅
-const BASE_URL = window.location.origin;
-
+// ★ 주소 파싱 에러를 완벽히 막기 위해 슬래시 보정 로직을 거친 안전한 상대 경로 기반으로 전환
 let curTab = 'all';
-let curTag = '전체'; // 말머리 필터 상태값 추가
+let curTag = '전체';
 let curPage = 1;
 let searchQ = '';
 let currentPostId = null;
@@ -333,15 +327,15 @@ function toggleAuthBox(isLogin) {
 
 async function apiFetch(url, options = {}) {
   const token = localStorage.getItem('token');
-  if (token) {
-    options.headers = {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`
-    };
-  }
+  if (!options.headers) options.headers = {};
   
-  // ★ 상대경로 대신 명확한 절대 도메인을 붙여 정적 html 오수신을 원천 차단
-  const res = await fetch(`${BASE_URL}${url}`, options);
+  if (token) {
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // ★ 호출 시 도메인 충돌 방지를 위해 슬래시(/) 시작점을 깔끔하게 일치시킨 순수 주소 요청 방식 적용
+  const safeUrl = url.startsWith('/') ? url : '/' + url;
+  const res = await fetch(safeUrl, options);
   
   const contentType = res.headers.get("content-type");
   if (!contentType || !contentType.includes("application/json")) {
@@ -427,7 +421,6 @@ function setTab(tab) {
   loadPosts();
 }
 
-// ★ 말머리 필터 선택 함수 추가
 function setTagFilter(tag) {
   curTag = tag;
   curPage = 1;
@@ -438,7 +431,6 @@ function setTagFilter(tag) {
 
 async function loadPosts() {
   try {
-    // API에 tag 정보 전달하여 조회하도록 변경
     const url = `/api/posts?tab=${curTab}&page=${curPage}&tag=${encodeURIComponent(curTag)}&q=${encodeURIComponent(searchQ)}`;
     const d = await apiFetch(url);
     const ul = document.getElementById('plist');
