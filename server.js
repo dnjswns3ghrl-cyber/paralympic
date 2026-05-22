@@ -324,8 +324,8 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ── SPA 폴백 라우트 ──────────────────────────────────────────────────────────
-// 최신 Express v5+ 규격에 맞는 와일드카드 표현식으로 변경합니다.
-app.get('(.*)*', (req, res) => {
+// app.get 대신 app.use를 사용하여 최신 Express v5+의 PathError를 원천 차단합니다.
+app.use((req, res, next) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
