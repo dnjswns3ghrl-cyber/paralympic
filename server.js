@@ -288,17 +288,17 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// ── ⚙️ 라우팅 예외 처리 및 폴백 완전 격리 ────────────────────────────────────
+// server.js 맨 하단 영역 수정
 
-// 1. 정의되지 않은 비정상 /api 요청 차단 (문자열 매칭 규칙 엄격 분리)
+app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
+
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
 });
 
-// 2. [핵심 패치] 모든 일반 페이지 진입 시 정적 캐싱 경로 분석을 완전히 우회하고
-// 백엔드가 직접 명시적으로 실시간 최신 index.html 파일을 전송하도록 처리합니다.
+// index.html이 아닌 이름이 바뀐 app.html을 백엔드가 직접 명시적으로 읽어 보냅니다.
 app.use((req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const indexPath = path.join(__dirname, 'public', 'app.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
