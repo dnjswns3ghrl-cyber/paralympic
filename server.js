@@ -14,8 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key';
 app.use(cors());
 app.use(express.json());
 
-// [패치] 브라우저가 예전 정적 파편 파일을 먼저 가로채지 못하도록 
-// 특정 자원(이미지, CSS 등) 폴더가 확실할 때만 static을 적용하고, 루트 경로는 정적 서빙에서 제외합니다.
+// 정적 자원(assets 등) 폴더 서빙 규칙 설정
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 
 let db;
@@ -101,6 +100,7 @@ async function initDB() {
     )
   `);
 
+  // 하위 호환용 컬럼 예외 처리
   try { db.exec("SELECT tag FROM posts LIMIT 1"); } catch (e) {
     try { db.run("ALTER TABLE posts ADD COLUMN tag TEXT NOT NULL DEFAULT '잡담'"); } catch(err){}
   }
@@ -109,6 +109,7 @@ async function initDB() {
     try { db.run("ALTER TABLE comments ADD COLUMN down INTEGER DEFAULT 0"); } catch(err){}
   }
 
+  // 최고 관리자 자동 생성
   const adminCheck = db.exec("SELECT COUNT(*) as cnt FROM users WHERE role='ADMIN'")[0].values[0][0];
   if (adminCheck === 0) {
     const hashedAdminPw = bcrypt.hashSync('admin1234', 10);
@@ -162,7 +163,7 @@ function isAdmin(req, res, next) {
   next();
 }
 
-// ── 🔑 명시적 API 라우트 영역 ──────────────────────────────────────────────────
+// ── 🔑 API 라우트 영역 ─────────────────────────────────────────────────────────
 
 app.post('/api/auth/register', (req, res) => {
   const { username, password, nickname } = req.body;
@@ -251,7 +252,7 @@ app.post('/api/posts/:id/vote', (req, res) => {
   }
 });
 
-app.post('/api/comments/:id/vote', (react, res) => {
+app.post('/api/comments/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
   if (!['up', 'down'].includes(type) || !uuid) return res.status(400).json({ error: '올바르지 않은 요청입니다.' });
@@ -271,6 +272,8 @@ app.post('/api/comments/:id/vote', (react, res) => {
   }
 });
 
+// ── 👑 관리자 라우트 영역 ──────────────────────────────────────────────────────
+
 app.delete('/api/admin/posts/:id', authenticateToken, isAdmin, (req, res) => {
   run('DELETE FROM posts WHERE id = ?', [parseInt(req.params.id)]);
   res.json({ success: true, message: '게시글이 성공적으로 삭제되었습니다.' });
@@ -288,22 +291,16 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// server.js 맨 하단 영역 수정
+// ── ⚙️ 라우팅 예외 처리 및 폴백 안전 서빙 ──────────────────────────────────────
 
-app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
-
+// 1. 정의되지 않은 비정상 /api 요청 차단
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
 });
 
-// index.html이 아닌 이름이 바뀐 app.html을 백엔드가 직접 명시적으로 읽어 보냅니다.
+// 2. 브라우저가 다이렉트로 접속하거나 라우팅 이동을 할 때 public/index.html을 확실히 전송
 app.use((req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'app.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(500).send('정적 메인 페이지 파일을 찾을 수 없습니다.');
-  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 initDB().then(() => {
