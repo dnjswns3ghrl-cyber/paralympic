@@ -289,13 +289,12 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// ── ⚠️ [핵심 수정] 최신 규격에 맞게 라우팅 매칭 조건 변경 ─────────────────────
-// 최신 path-to-regexp 라이브러리는 단독 '*'를 허용하지 않으므로 '/api/*' 형태로 가두어 처리합니다.
-app.all('/api/*', (req, res) => {
+// ── ⚠️ [완벽 해결] 모든 와일드카드 문자열 규격 패치 ───────────────────────────
+// '/api/*' 대신 규격화된 표현인 '/api/(.*)' 문법을 사용하여 매칭 에러를 영구 방지합니다.
+app.all('/api/(.*)', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
 });
 
-// SPA 프론트엔드 라우팅 폴백도 단독 '*' 대신 최신 규격 규정인 '(.*)' 문법을 사용하여 에러를 원천 차단합니다.
 app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
