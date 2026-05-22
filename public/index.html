@@ -76,11 +76,6 @@ main { width:100%; max-width:600px; padding:15px; flex:1; padding-bottom:80px; }
 .cmt-input-box input { flex:1; padding:10px; border-radius:6px; border:1px solid var(--bd); background: var(--bg1); color: var(--tx0); outline:none; font-size:13px; }
 .cmt-input-box button { padding:0 14px; border-radius:6px; background: var(--ac); color:#fff; font-weight:500; font-size:13px; }
 .admin-badge { background: var(--hot-bg); color: var(--hot-tx); border:1px solid var(--hot); font-size:10px; padding:0px 4px; border-radius:3px; font-weight:bold; margin-left:4px; }
-.tag-badge { font-size:12px; font-weight:bold; padding:2px 6px; border-radius:4px; margin-right:6px; display:inline-block; }
-.tag-잡담 { background: var(--bg2); color: var(--tx1); }
-.tag-사진 { background: #fef3c7; color: #d97706; }
-.tag-질문 { background: #e0f2fe; color: #0369a1; }
-.tag-공지 { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
 </style>
 </head>
 <body>
@@ -156,12 +151,12 @@ main { width:100%; max-width:600px; padding:15px; flex:1; padding-bottom:80px; }
       </div>
 
       <div class="form-group">
-        <label for="w-title">제목</label>
-        <input type="text" id="w-title" placeholder="제목을 입력하세요" />
+        <label for="title">제목</label>
+        <input type="text" id="title" placeholder="제목을 입력하세요" />
       </div>
       <div class="form-group">
-        <label for="w-body">내용</label>
-        <textarea id="w-body" rows="8" placeholder="커뮤니티 이용규칙을 준수하여 내용을 작성해 주세요."></textarea>
+        <label for="body">내용</label>
+        <textarea id="body" rows="8" placeholder="커뮤니티 이용규칙을 준수하여 내용을 작성해 주세요."></textarea>
       </div>
       <div style="display:flex; gap:10px; margin-top:15px;">
         <button class="btn-primary" style="background:var(--bg2); color:var(--tx1);" onclick="goHome()">취소</button>
@@ -231,13 +226,12 @@ main { width:100%; max-width:600px; padding:15px; flex:1; padding-bottom:80px; }
 <button class="fab" id="fabBtn" onclick="clickFab()"><i class="ti ti-plus"></i></button>
 
 <script>
-const API = ''; // 백엔드가 같은 서버이므로 공백 유지
+const API = ''; 
 let curTab = 'all';
 let curPage = 1;
 let searchQ = '';
 let currentPostId = null;
 
-// 유저 상태 관리 객체
 let currentUser = {
   isLoggedIn: false,
   username: '',
@@ -245,14 +239,12 @@ let currentUser = {
   role: 'USER'
 };
 
-// 페이지 초기 로드
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   checkLoginStatus();
   loadPosts();
 });
 
-// ── 테마 관리 ────────────────────────────────────────────────────────────────
 function initTheme() {
   const saved = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
@@ -271,7 +263,6 @@ function updateThemeIcon(t) {
   else { icon.className = 'ti ti-sun'; }
 }
 
-// ── 인증 및 로그인 상태 관리 ───────────────────────────────────────────────────
 function checkLoginStatus() {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -307,7 +298,6 @@ function toggleAuthBox(isLogin) {
   document.getElementById('box-join').style.display = isLogin ? 'none' : 'block';
 }
 
-// 공통 API 통신 함수
 async function apiFetch(url, options = {}) {
   const token = localStorage.getItem('token');
   if (token) {
@@ -318,7 +308,6 @@ async function apiFetch(url, options = {}) {
   }
   const res = await fetch(url, options);
   
-  // ★ 백엔드가 404나 500에러로 HTML을 반환한 경우 예외 차단
   const contentType = res.headers.get("content-type");
   if (!contentType || !contentType.includes("application/json")) {
     throw new Error("서버에서 올바르지 않은 응답 형식을 받았습니다. (HTML 수신)");
@@ -371,11 +360,9 @@ function logout() {
   goHome();
 }
 
-// ── 네비게이션 및 화면 제어 ─────────────────────────────────────────────────────
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
   document.getElementById(`v-${id}`).style.display = 'block';
-  // 글작성 폼일 때만 FAB 숨기기
   document.getElementById('fabBtn').style.display = (id === 'write' || id === 'auth' || id === 'user') ? 'none' : 'flex';
   window.scrollTo(0,0);
 }
@@ -391,14 +378,12 @@ function clickFab() {
     showView('auth');
     return;
   }
-  // 글 작성 폼 초기화
-  document.getElementById('w-title').value = '';
-  document.getElementById('w-body').value = '';
+  document.getElementById('title').value = '';
+  document.getElementById('body').value = '';
   document.getElementById('w-tag').value = '잡담';
   showView('write');
 }
 
-// ── 게시판 기능 ────────────────────────────────────────────────────────────────
 function setTab(tab) {
   curTab = tab;
   curPage = 1;
@@ -407,6 +392,7 @@ function setTab(tab) {
   loadPosts();
 }
 
+// ── 원래의 순정 텍스트 UI 스타일 복구 ──────────────────────────────────────────
 async function loadPosts() {
   try {
     const url = `/api/posts?tab=${curTab}&page=${curPage}&q=${encodeURIComponent(searchQ)}`;
@@ -420,13 +406,14 @@ async function loadPosts() {
 
     d.posts.forEach(p => {
       const li = document.createElement('li');
-      const tagClass = `tag-${p.tag || '잡담'}`;
       const tagText = p.tag || '잡담';
+      // 공지는 빨간색, 일반 글머리는 파란색으로 자연스럽게 노출
+      const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
 
       li.innerHTML = `
         <span class="t">
           ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
-          <span class="tag-badge ${tagClass}">${tagText}</span>
+          <span style="color: ${tagColor}; font-weight: 700; margin-right: 5px;">[${esc(tagText)}]</span>
           ${esc(p.title)}
           ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
         </span>
@@ -436,7 +423,6 @@ async function loadPosts() {
       ul.appendChild(li);
     });
 
-    // 페이징 처리
     const totalPages = Math.ceil(d.total / d.perPage) || 1;
     document.getElementById('pnum').textContent = `${d.page} / ${totalPages}`;
     document.getElementById('pbtn-prev').disabled = d.page <= 1;
@@ -455,10 +441,11 @@ async function openPost(id) {
     const d = await apiFetch(`/api/posts/${id}`);
     currentPostId = d.post.id;
 
-    const tagClass = `tag-${d.post.tag || '잡담'}`;
     const tagText = d.post.tag || '잡담';
+    const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
 
-    document.getElementById('d-title').innerHTML = `<span class="tag-badge ${tagClass}" style="font-size:14px; padding:4px 8px;">${tagText}</span> ` + esc(d.post.title);
+    // 상세 보기 제목 레이아웃 원복
+    document.getElementById('d-title').innerHTML = `<span style="color: ${tagColor}; font-weight: 700; margin-right: 6px;">[${esc(tagText)}]</span>` + esc(d.post.title);
     document.getElementById('d-nick').textContent = d.post.nick;
     document.getElementById('d-date').textContent = fmtDate(d.post.created_at);
     document.getElementById('d-views').textContent = d.post.views;
@@ -466,10 +453,8 @@ async function openPost(id) {
     document.getElementById('d-up').textContent = d.post.up;
     document.getElementById('d-down').textContent = d.post.down;
 
-    // 관리자 전용 삭제 버튼 가시성 제어
     document.getElementById('d-admin-del').style.display = (currentUser.isLoggedIn && currentUser.role === 'ADMIN') ? 'flex' : 'none';
 
-    // 댓글 그리기
     renderComments(d.comments);
     document.getElementById('cinp').value = '';
     showView('detail');
@@ -502,15 +487,14 @@ function renderComments(comments) {
   });
 }
 
-// ★ 게시글 작성 검증 및 요청 전송 함수
+// ★ id가 매칭되지 않던 버그 완벽 수정 (title, body로 원복)
 async function submitPost() {
-  const title = document.getElementById('w-title').value.trim();
-  const body = document.getElementById('w-body').value.trim();
-  const tag = document.getElementById('w-tag').value; // 기입된 말머리 정보
+  const title = document.getElementById('title').value.trim();
+  const body = document.getElementById('body').value.trim();
+  const tag = document.getElementById('w-tag').value;
 
   if(!title || !body) return alert('제목과 내용을 모두 채워주세요.');
 
-  // [보안 사전체크] 선택한 말머리가 '공지'인데 관리자가 아닌 경우 프론트엔드 단에서 원천 차단
   if (tag === '공지' && currentUser.role !== 'ADMIN') {
     return alert('📢 공지사항은 최고 관리자(ADMIN) 권한이 있는 계정만 작성할 수 있습니다.');
   }
@@ -542,7 +526,6 @@ async function submitComment() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body })
     });
-    // 상세 페이지 새로고침 대신 수동 추가 혹은 재호출
     await openPost(currentPostId);
   } catch(e) { alert(e.message); }
 }
@@ -559,7 +542,6 @@ async function vote(type) {
   } catch(e) { alert(e.message); }
 }
 
-// ── 관리자 삭제 액션 ────────────────────────────────────────────────────────────
 async function deletePostByAdmin() {
   if(!confirm('정말 이 게시글을 강제 삭제하시겠습니까?')) return;
   try {
@@ -588,7 +570,6 @@ async function loadStats() {
   } catch(e) {}
 }
 
-// ── 검색 디바운싱 이벤트 ────────────────────────────────────────────────────────
 let searchTimer;
 document.getElementById('sinp').addEventListener('input', function() {
   searchQ = this.value.trim();
@@ -597,13 +578,11 @@ document.getElementById('sinp').addEventListener('input', function() {
 });
 document.getElementById('cinp').addEventListener('keydown', e => { if(e.key==='Enter') submitComment(); });
 
-// ── 유틸리티 문자열 치환 ────────────────────────────────────────────────────────
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function fmtDate(s) {
   if(!s) return '';
-  // 2025-10-24 14:32:10 구조 분할 파싱
   const p = s.split(' ');
   if(!p[0]) return s;
   const d = p[0].split('-');
