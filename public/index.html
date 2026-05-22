@@ -83,10 +83,18 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 
 .cmt-section h3 { font-size:15px; font-weight:700; margin-bottom:12px; border-top:1px solid var(--bd); padding-top:18px; }
 .cmt-list { list-style:none; margin-bottom:18px; }
-.cmt-list li { padding:12px 0; border-bottom:1px solid var(--bd); font-size:14px; }
-.cmt-list li:last-child { border-bottom:none; }
-.cmt-meta { display:flex; justify-content:space-between; font-size:12px; color: var(--tx2); margin-bottom:6px; }
-.cmt-body { line-height:1.5; font-size:14.5px; }
+.cmt-list li { padding:12px 0; border-bottom:1px solid var(--bd); font-size:14px; display:flex; flex-direction:column; gap:4px; }
+.cmt-top { display:flex; justify-content:space-between; font-size:12px; color: var(--tx2); }
+.cmt-bottom { display:flex; justify-content:space-between; align-items:flex-end; margin-top:2px; }
+.cmt-body { line-height:1.5; font-size:14.5px; flex:1; }
+
+/* 댓글 전용 개추 비추 디자인 스타일 */
+.cmt-votes { display:flex; gap:8px; font-size:12px; margin-left:10px; }
+.cmt-vote-btn { background:var(--bg1); border:1px solid var(--bd); padding:2px 8px; border-radius:12px; display:flex; align-items:center; gap:3px; color:var(--tx1); font-size:11px; }
+.cmt-vote-btn:hover { background:var(--bg2); }
+.cmt-vote-btn.cup i { color:#2563eb; }
+.cmt-vote-btn.cdown i { color:#ef4444; }
+
 .cmt-input-box { display:flex; gap:10px; }
 .cmt-input-box input { flex:1; padding:12px; border-radius:6px; border:1px solid var(--bd); background: var(--bg1); color: var(--tx0); outline:none; font-size:14px; }
 .cmt-input-box button { padding:0 18px; border-radius:6px; background: var(--ac); color:#fff; font-weight:500; font-size:14px; }
@@ -147,7 +155,7 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
       </div>
       <div id="d-body" class="post-body">내용</div>
       <div class="vote-zone">
-        <button class="btn-vote up" onclick="vote('up')"><i class="ti ti-thumb-up"></i> 추천 <span id="d-up">0</span></button>
+        <button class="btn-vote up" onclick="vote('up')"><i class="ti ti-thumb-up"></i> 개추 <span id="d-up">0</span></button>
         <button class="btn-vote down" onclick="vote('down')"><i class="ti ti-thumb-down"></i> 비추 <span id="d-down">0</span></button>
         <button class="btn-vote" id="d-admin-del" style="display:none; color:var(--hot);" onclick="deletePostByAdmin()"><i class="ti ti-trash"></i> 삭제(관리자)</button>
       </div>
@@ -165,7 +173,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
   <div id="v-write" class="view" style="display:none">
     <div class="card">
       <h2 style="margin-bottom:15px">새 글 쓰기</h2>
-      
       <div class="form-group">
         <label for="w-tag">말머리</label>
         <select id="w-tag">
@@ -175,7 +182,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
           <option value="공지">📢 공지 (관리자 전용)</option>
         </select>
       </div>
-
       <div class="form-group">
         <label for="title">제목</label>
         <input type="text" id="title" placeholder="제목을 입력하세요" />
@@ -243,7 +249,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
         <div style="border-left:1px solid var(--bd)"></div>
         <div><div style="color:var(--tx2);margin-bottom:4px">누적 댓글</div><b id="stcmt" style="font-size:16px">0</b></div>
       </div>
-
       <button class="btn-primary" style="background:var(--hot-bg); color:var(--hot-tx); border:1px solid var(--hot)" onclick="logout()">로그아웃</button>
     </div>
   </div>
@@ -252,19 +257,20 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 <button class="fab" id="fabBtn" onclick="clickFab()"><i class="ti ti-plus"></i></button>
 
 <script>
-// ★ 주소 파싱 에러를 완벽히 막기 위해 슬래시 보정 로직을 거친 안전한 상대 경로 기반으로 전환
+// ★ 고유 기기값 보관용 식별자 취득 (브라우저 중복 추천 제어용)
+let deviceUuid = localStorage.getItem('vote_uuid');
+if (!deviceUuid) {
+  deviceUuid = 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  localStorage.setItem('vote_uuid', deviceUuid);
+}
+
 let curTab = 'all';
 let curTag = '전체';
 let curPage = 1;
 let searchQ = '';
 let currentPostId = null;
 
-let currentUser = {
-  isLoggedIn: false,
-  username: '',
-  nickname: '',
-  role: 'USER'
-};
+let currentUser = { isLoggedIn: false, username: '', nickname: '', role: 'USER' };
 
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -286,8 +292,7 @@ function toggleTheme() {
 }
 function updateThemeIcon(t) {
   const icon = document.querySelector('#themeBtn i');
-  if(t === 'dark') { icon.className = 'ti ti-moon'; }
-  else { icon.className = 'ti ti-sun'; }
+  icon.className = t === 'dark' ? 'ti ti-moon' : 'ti ti-sun';
 }
 
 function checkLoginStatus() {
@@ -300,24 +305,16 @@ function checkLoginStatus() {
       currentUser.username = u.username;
       currentUser.nickname = u.nickname;
       currentUser.role = u.role || 'USER';
-    } catch(e) {
-      logout();
-    }
-  } else {
-    currentUser.isLoggedIn = false;
-  }
+    } catch(e) { logout(); }
+  } else { currentUser.isLoggedIn = false; }
 }
 
 function clickUserIcon() {
   if (currentUser.isLoggedIn) {
     document.getElementById('u-nick').innerHTML = esc(currentUser.nickname) + (currentUser.role === 'ADMIN' ? '<span class="admin-badge">👑 관리자</span>' : '');
     document.getElementById('u-id').textContent = `@${currentUser.username}`;
-    loadStats();
-    showView('user');
-  } else {
-    toggleAuthBox(true);
-    showView('auth');
-  }
+    loadStats(); showView('user');
+  } else { toggleAuthBox(true); showView('auth'); }
 }
 
 function toggleAuthBox(isLogin) {
@@ -325,25 +322,22 @@ function toggleAuthBox(isLogin) {
   document.getElementById('box-join').style.display = isLogin ? 'none' : 'block';
 }
 
+// ★ 원천 격리 절대주소 패치 적용
 async function apiFetch(url, options = {}) {
   const token = localStorage.getItem('token');
   if (!options.headers) options.headers = {};
-  
-  if (token) {
-    options.headers['Authorization'] = `Bearer ${token}`;
-  }
+  if (token) options.headers['Authorization'] = `Bearer ${token}`;
 
-  // ★ 호출 시 도메인 충돌 방지를 위해 슬래시(/) 시작점을 깔끔하게 일치시킨 순수 주소 요청 방식 적용
-  const safeUrl = url.startsWith('/') ? url : '/' + url;
-  const res = await fetch(safeUrl, options);
-  
+  const res = await fetch(url, options);
   const contentType = res.headers.get("content-type");
+  
+  // HTML이 가로채 흘러들어오는 현상 감지
   if (!contentType || !contentType.includes("application/json")) {
-    throw new Error("서버에서 올바르지 않은 응답 형식을 받았습니다. 잠시 후 새로고침해 주세요.");
+    throw new Error("서버 라우팅 충돌이 발생했습니다. 브라우저 캐시를 새로고침(Ctrl+F5) 후 시도해 주세요.");
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '요청 실패');
+  if (!res.ok) throw new Error(data.error || '요청 처리 실패');
   return data;
 }
 
@@ -360,7 +354,7 @@ async function login() {
     localStorage.setItem('token', d.token);
     localStorage.setItem('user', JSON.stringify(d.user));
     checkLoginStatus();
-    alert('반갑습니다, ' + d.user.nickname + '님!');
+    alert(d.user.nickname + '님 환영합니다!');
     goHome();
   } catch(e) { alert(e.message); }
 }
@@ -369,24 +363,20 @@ async function register() {
   const username = document.getElementById('j-user').value.trim();
   const password = document.getElementById('j-pass').value;
   const nickname = document.getElementById('j-nick').value.trim();
-  if(!username || !password || !nickname) return alert('모든 항목을 입력하세요.');
+  if(!username || !password || !nickname) return alert('모든 칸을 채워주세요.');
   try {
     await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, nickname })
     });
-    alert('회원가입이 완료되었습니다! 로그인해 주세요.');
-    toggleAuthBox(true);
+    alert('가입 완료! 로그인 해주세요.'); toggleAuthBox(true);
   } catch(e) { alert(e.message); }
 }
 
 function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  currentUser.isLoggedIn = false;
-  alert('로그아웃 되었습니다.');
-  goHome();
+  localStorage.removeItem('token'); localStorage.removeItem('user');
+  currentUser.isLoggedIn = false; alert('로그아웃 되었습니다.'); goHome();
 }
 
 function showView(id) {
@@ -395,38 +385,22 @@ function showView(id) {
   document.getElementById('fabBtn').style.display = (id === 'write' || id === 'auth' || id === 'user') ? 'none' : 'flex';
   window.scrollTo(0,0);
 }
-
-function goHome() {
-  showView('list');
-}
-
+function goHome() { showView('list'); }
 function clickFab() {
-  if(!currentUser.isLoggedIn) {
-    alert('글을 작성하려면 로그인이 필요합니다.');
-    toggleAuthBox(true);
-    showView('auth');
-    return;
-  }
-  document.getElementById('title').value = '';
-  document.getElementById('body').value = '';
-  document.getElementById('w-tag').value = '잡담';
+  if(!currentUser.isLoggedIn) { alert('로그인이 필요합니다.'); toggleAuthBox(true); showView('auth'); return; }
+  document.getElementById('title').value = ''; document.getElementById('body').value = ''; document.getElementById('w-tag').value = '잡담';
   showView('write');
 }
 
 function setTab(tab) {
-  curTab = tab;
-  curPage = 1;
+  curTab = tab; curPage = 1;
   document.querySelectorAll('.tab').forEach(t => { if(!t.classList.contains('tag-tab')) t.classList.remove('active'); });
-  document.getElementById(`tab-${tab}`).classList.add('active');
-  loadPosts();
+  document.getElementById(`tab-${tab}`).classList.add('active'); loadPosts();
 }
-
 function setTagFilter(tag) {
-  curTag = tag;
-  curPage = 1;
+  curTag = tag; curPage = 1;
   document.querySelectorAll('.tag-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`ttab-${tag}`).classList.add('active');
-  loadPosts();
+  document.getElementById(`ttab-${tag}`).classList.add('active'); loadPosts();
 }
 
 async function loadPosts() {
@@ -444,11 +418,10 @@ async function loadPosts() {
       const li = document.createElement('li');
       const tagText = p.tag || '잡담';
       const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
-
       li.innerHTML = `
         <span class="t">
           ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
-          <span style="color: ${tagColor}; font-weight: 700; margin-right: 5px;">[${esc(tagText)}]</span>
+          <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
           ${esc(p.title)}
           ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
         </span>
@@ -462,10 +435,7 @@ async function loadPosts() {
     document.getElementById('pnum').textContent = `${d.page} / ${totalPages}`;
     document.getElementById('pbtn-prev').disabled = d.page <= 1;
     document.getElementById('pbtn-next').disabled = d.page >= totalPages;
-
-  } catch(e) {
-    console.error(e);
-  }
+  } catch(e) { console.error(e); }
 }
 
 function prevPage() { if(curPage > 1) { curPage--; loadPosts(); } }
@@ -479,7 +449,7 @@ async function openPost(id) {
     const tagText = d.post.tag || '잡담';
     const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
 
-    document.getElementById('d-title').innerHTML = `<span style="color: ${tagColor}; font-weight: 700; margin-right: 6px;">[${esc(tagText)}]</span>` + esc(d.post.title);
+    document.getElementById('d-title').innerHTML = `<span style="color: ${tagColor}; font-weight:700; margin-right:6px;">[${esc(tagText)}]</span>` + esc(d.post.title);
     document.getElementById('d-nick').textContent = d.post.nick;
     document.getElementById('d-date').textContent = fmtDate(d.post.created_at);
     document.getElementById('d-views').textContent = d.post.views;
@@ -495,6 +465,7 @@ async function openPost(id) {
   } catch(e) { alert(e.message); }
 }
 
+// ★ 댓글 목록 로드 시 추천/비추천 버튼 컴포넌트 추가 연동
 function renderComments(comments) {
   const ul = document.getElementById('clist');
   ul.innerHTML = '';
@@ -508,14 +479,20 @@ function renderComments(comments) {
   comments.forEach(c => {
     const li = document.createElement('li');
     li.innerHTML = `
-      <div class="cmt-meta">
+      <div class="cmt-top">
         <span style="font-weight:500;color:var(--tx1);">${esc(c.nick)}</span>
         <div style="display:flex; gap:8px; align-items:center;">
           <span>${fmtDate(c.created_at)}</span>
           ${(currentUser.isLoggedIn && currentUser.role === 'ADMIN') ? `<span style="color:var(--hot);cursor:pointer;" onclick="deleteCommentByAdmin(${c.id})">[삭제]</span>` : ''}
         </div>
       </div>
-      <div class="cmt-body">${esc(c.body)}</div>
+      <div class="cmt-bottom">
+        <div class="cmt-body">${esc(c.body)}</div>
+        <div class="cmt-votes">
+          <button class="cmt-vote-btn cup" onclick="voteComment(${c.id}, 'up')"><i class="ti ti-thumb-up"></i> <span>${c.up || 0}</span></button>
+          <button class="cmt-vote-btn cdown" onclick="voteComment(${c.id}, 'down')"><i class="ti ti-thumb-down"></i> <span>${c.down || 0}</span></button>
+        </div>
+      </div>
     `;
     ul.appendChild(li);
   });
@@ -525,12 +502,7 @@ async function submitPost() {
   const title = document.getElementById('title').value.trim();
   const body = document.getElementById('body').value.trim();
   const tag = document.getElementById('w-tag').value;
-
-  if(!title || !body) return alert('제목과 내용을 모두 채워주세요.');
-
-  if (tag === '공지' && currentUser.role !== 'ADMIN') {
-    return alert('📢 공지사항은 최고 관리자(ADMIN) 권한이 있는 계정만 작성할 수 있습니다.');
-  }
+  if(!title || !body) return alert('모두 채워주세요.');
 
   try {
     await apiFetch('/api/posts', {
@@ -538,23 +510,17 @@ async function submitPost() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body, tag })
     });
-
-    alert('글이 정상적으로 등록되었습니다!');
-    curPage = 1;
-    await loadPosts();
-    goHome();
-  } catch(e) {
-    alert(e.message);
-  }
+    alert('등록되었습니다.'); curPage = 1; await loadPosts(); goHome();
+  } catch(e) { alert(e.message); }
 }
 
 async function submitComment() {
-  if(!currentUser.isLoggedIn) return alert('댓글을 쓰려면 로그인이 필요합니다.');
+  if(!currentUser.isLoggedIn) return alert('로그인이 필요합니다.');
   const body = document.getElementById('cinp').value.trim();
   if(!body) return alert('내용을 입력하세요.');
 
   try {
-    const c = await apiFetch(`/api/posts/${currentPostId}/comments`, {
+    await apiFetch(`/api/posts/${currentPostId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body })
@@ -563,33 +529,45 @@ async function submitComment() {
   } catch(e) { alert(e.message); }
 }
 
+// ★ 게시글 개추/비추천 중복 차단 요청 처리
 async function vote(type) {
   try {
     const d = await apiFetch(`/api/posts/${currentPostId}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type })
+      body: JSON.stringify({ type, uuid: deviceUuid }) // 고유 브라우저 식별값 전송
     });
     document.getElementById('d-up').textContent = d.up;
     document.getElementById('d-down').textContent = d.down;
+    alert(`${type === 'up' ? '개추' : '비추'}를 반영했습니다.`);
+  } catch(e) { alert(e.message); }
+}
+
+// ★ 댓글 추천/비추천 중복 차단 요청 처리
+async function voteComment(commentId, type) {
+  try {
+    await apiFetch(`/api/comments/${commentId}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, uuid: deviceUuid })
+    });
+    alert('댓글에 의견이 반영되었습니다.');
+    await openPost(currentPostId); // 새로고침 리로드
   } catch(e) { alert(e.message); }
 }
 
 async function deletePostByAdmin() {
-  if(!confirm('정말 이 게시글을 강제 삭제하시겠습니까?')) return;
+  if(!confirm('정말 삭제하시겠습니까?')) return;
   try {
     await apiFetch(`/api/admin/posts/${currentPostId}`, { method: 'DELETE' });
-    alert('게시글이 삭제되었습니다.');
-    loadPosts();
-    goHome();
+    alert('삭제되었습니다.'); loadPosts(); goHome();
   } catch(e) { alert(e.message); }
 }
 
 async function deleteCommentByAdmin(cmtId) {
-  if(!confirm('정말 이 댓글을 삭제하시겠습니까?')) return;
+  if(!confirm('댓글을 삭제하시겠습니까?')) return;
   try {
     await apiFetch(`/api/admin/comments/${cmtId}`, { method: 'DELETE' });
-    alert('댓글이 삭제되었습니다.');
     await openPost(currentPostId);
   } catch(e) { alert(e.message); }
 }
@@ -605,21 +583,15 @@ async function loadStats() {
 
 let searchTimer;
 document.getElementById('sinp').addEventListener('input', function() {
-  searchQ = this.value.trim();
-  clearTimeout(searchTimer);
+  searchQ = this.value.trim(); clearTimeout(searchTimer);
   searchTimer = setTimeout(() => { curPage = 1; loadPosts(); showView('list'); }, 300);
 });
 document.getElementById('cinp').addEventListener('keydown', e => { if(e.key==='Enter') submitComment(); });
 
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(s) {
-  if(!s) return '';
-  const p = s.split(' ');
-  if(!p[0]) return s;
-  const d = p[0].split('-');
-  const t = p[1]?p[1].split(':'):['00','00'];
+  if(!s) return ''; const p = s.split(' '); if(!p[0]) return s;
+  const d = p[0].split('-'); const t = p[1]?p[1].split(':'):['00','00'];
   return `${d[1]}/${d[2]} ${t[0]}:${t[1]}`;
 }
 </script>
