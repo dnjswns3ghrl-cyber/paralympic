@@ -13,7 +13,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key';
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// [패치] 브라우저가 예전 정적 파편 파일을 먼저 가로채지 못하도록 
+// 특정 자원(이미지, CSS 등) 폴더가 확실할 때만 static을 적용하고, 루트 경로는 정적 서빙에서 제외합니다.
+app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 
 let db;
 
@@ -98,7 +101,6 @@ async function initDB() {
     )
   `);
 
-  // 하위 호환용 컬럼 예외 처리
   try { db.exec("SELECT tag FROM posts LIMIT 1"); } catch (e) {
     try { db.run("ALTER TABLE posts ADD COLUMN tag TEXT NOT NULL DEFAULT '잡담'"); } catch(err){}
   }
@@ -107,7 +109,6 @@ async function initDB() {
     try { db.run("ALTER TABLE comments ADD COLUMN down INTEGER DEFAULT 0"); } catch(err){}
   }
 
-  // 최고 관리자 자동 생성
   const adminCheck = db.exec("SELECT COUNT(*) as cnt FROM users WHERE role='ADMIN'")[0].values[0][0];
   if (adminCheck === 0) {
     const hashedAdminPw = bcrypt.hashSync('admin1234', 10);
@@ -161,7 +162,7 @@ function isAdmin(req, res, next) {
   next();
 }
 
-// ── 🔑 API 라우트 ─────────────────────────────────────────────────────────────
+// ── 🔑 명시적 API 라우트 영역 ──────────────────────────────────────────────────
 
 app.post('/api/auth/register', (req, res) => {
   const { username, password, nickname } = req.body;
@@ -250,7 +251,7 @@ app.post('/api/posts/:id/vote', (req, res) => {
   }
 });
 
-app.post('/api/comments/:id/vote', (req, res) => {
+app.post('/api/comments/:id/vote', (react, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
   if (!['up', 'down'].includes(type) || !uuid) return res.status(400).json({ error: '올바르지 않은 요청입니다.' });
@@ -270,16 +271,14 @@ app.post('/api/comments/:id/vote', (req, res) => {
   }
 });
 
-// ── 👑 관리자 라우트 ──────────────────────────────────────────────────────────
-
 app.delete('/api/admin/posts/:id', authenticateToken, isAdmin, (req, res) => {
   run('DELETE FROM posts WHERE id = ?', [parseInt(req.params.id)]);
-  res.json({ success: true });
+  res.json({ success: true, message: '게시글이 성공적으로 삭제되었습니다.' });
 });
 
 app.delete('/api/admin/comments/:id', authenticateToken, isAdmin, (req, res) => {
   run('DELETE FROM comments WHERE id = ?', [parseInt(req.params.id)]);
-  res.json({ success: true });
+  res.json({ success: true, message: '댓글이 성공적으로 삭제되었습니다.' });
 });
 
 app.get('/api/stats', (req, res) => {
@@ -289,17 +288,22 @@ app.get('/api/stats', (req, res) => {
   res.json({ total, today, comments });
 });
 
-// ── ⚙️ [최종 조치] 와일드카드 문자열 매칭 방식 완전 배제 ────────────────────
+// ── ⚙️ 라우팅 예외 처리 및 폴백 완전 격리 ────────────────────────────────────
 
-// /api로 시작하는 정의되지 않은 다른 모든 요청은 괄호나 별표 없이 라우팅 경로만 정의하여 격리시킵니다.
+// 1. 정의되지 않은 비정상 /api 요청 차단 (문자열 매칭 규칙 엄격 분리)
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' });
 });
 
-// 나머지 모든 일반 페이지 요청 처리는 주소 규칙 검사 단계를 완전히 건너뛰고 
-// 미들웨어 본문 함수 안에서 index.html을 서빙하도록 구조를 변경하여 문법 에러를 영구히 해결합니다.
+// 2. [핵심 패치] 모든 일반 페이지 진입 시 정적 캐싱 경로 분석을 완전히 우회하고
+// 백엔드가 직접 명시적으로 실시간 최신 index.html 파일을 전송하도록 처리합니다.
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(500).send('정적 메인 페이지 파일을 찾을 수 없습니다.');
+  }
 });
 
 initDB().then(() => {
