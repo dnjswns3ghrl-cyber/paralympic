@@ -82,12 +82,23 @@ async function initDB() {
   )`);
 
   // 하위 호환 컬럼 추가
-  try { db.exec("SELECT tag FROM posts LIMIT 1"); } catch(e) {
-    try { db.run("ALTER TABLE posts ADD COLUMN tag TEXT NOT NULL DEFAULT '잡담'"); } catch(err){}
-  }
-  try { db.exec("SELECT up FROM comments LIMIT 1"); } catch(e) {
-    try { db.run("ALTER TABLE comments ADD COLUMN up INTEGER DEFAULT 0"); } catch(err){}
-    try { db.run("ALTER TABLE comments ADD COLUMN down INTEGER DEFAULT 0"); } catch(err){}
+  // 구버전 DB 마이그레이션 — 누락 컬럼 자동 추가
+  const migrations = [
+    ["SELECT tag     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN tag     TEXT    NOT NULL DEFAULT '잡담'"],
+    ["SELECT user_id FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN user_id INTEGER"],
+    ["SELECT has_img FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN has_img INTEGER DEFAULT 0"],
+    ["SELECT hot     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN hot     INTEGER DEFAULT 0"],
+    ["SELECT up      FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN up      INTEGER DEFAULT 0"],
+    ["SELECT down    FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN down    INTEGER DEFAULT 0"],
+    ["SELECT views   FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN views   INTEGER DEFAULT 0"],
+    ["SELECT user_id FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN user_id INTEGER"],
+    ["SELECT up      FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN up      INTEGER DEFAULT 0"],
+    ["SELECT down    FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN down    INTEGER DEFAULT 0"],
+  ];
+  for (const [check, alter] of migrations) {
+    try { db.exec(check); } catch(e) {
+      try { db.run(alter); console.log('🔧 마이그레이션:', alter); } catch(err) {}
+    }
   }
 
   // 관리자 자동 생성
