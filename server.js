@@ -11,10 +11,8 @@ const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'data', 'community.db');
 const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key_change_in_production';
 
-// Base64 대용량 이미지 전송 데이터 처리를 위해 한도 확장 (기존 기본값에서 50mb로 증설)
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 let db;
@@ -55,14 +53,6 @@ async function initDB() {
     created_at TEXT DEFAULT (datetime('now','localtime'))
   )`);
 
-  // 게시글 이미지 보관용 서브 테이블 (Railway 영구 보존용 Base64 바이너리 매핑)
-  db.run(`CREATE TABLE IF NOT EXISTS post_images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER NOT NULL,
-    img_data TEXT NOT NULL,
-    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-  )`);
-
   db.run(`CREATE TABLE IF NOT EXISTS comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     post_id INTEGER NOT NULL,
@@ -91,7 +81,8 @@ async function initDB() {
     UNIQUE(comment_id, uuid)
   )`);
 
-  // 하위 호환 컬럼 추가 및 자동 마이그레이션 유지
+  // 하위 호환 컬럼 추가
+  // 구버전 DB 마이그레이션 — 누락 컬럼 자동 추가
   const migrations = [
     ["SELECT tag     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN tag     TEXT    NOT NULL DEFAULT '잡담'"],
     ["SELECT user_id FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN user_id INTEGER"],
@@ -122,6 +113,7 @@ async function initDB() {
   console.log('✅ DB 초기화 완료');
 }
 
+// ── saveDB: Railway Volume 포함 모든 환경에서 저장 ──────────────────────────
 function saveDB() {
   try {
     const dataDir = path.dirname(DB_PATH);
@@ -164,6 +156,7 @@ function isAdmin(req, res, next) {
 
 // ── API 라우트 ───────────────────────────────────────────────────────────────
 
+// 회원가입
 app.post('/api/auth/register', (req, res) => {
   const { username, password, nickname } = req.body;
   if (!username?.trim() || !password?.trim() || !nickname?.trim())
@@ -175,6 +168,7 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json({ success: true });
 });
 
+// 로그인
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   const users = query('SELECT * FROM users WHERE username=?', [username]);
@@ -188,6 +182,7 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, token, user: { username: user.username, nickname: user.nickname, role: user.role } });
 });
 
+// 게시글 목록
 app.get('/api/posts', (req, res) => {
   const { tab='all', page=1, q='', tag='' } = req.query;
   const perPage = 10, offset = (parseInt(page)-1) * perPage;
@@ -204,41 +199,29 @@ app.get('/api/posts', (req, res) => {
   res.json({ posts, total, page: parseInt(page), perPage });
 });
 
+// 게시글 상세
 app.get('/api/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
   run('UPDATE posts SET views=views+1 WHERE id=?', [id]);
   const posts = query('SELECT * FROM posts WHERE id=?', [id]);
   if (!posts.length) return res.status(404).json({ error: '게시글이 없습니다.' });
   const comments = query('SELECT * FROM comments WHERE post_id=? ORDER BY id ASC', [id]);
-  
-  // 상단 이미지 컴포넌트 데이터 추출 바인딩
-  const images = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]).map(img => img.img_data);
-  
-  res.json({ post: posts[0], comments, images });
+  res.json({ post: posts[0], comments });
 });
 
+// 게시글 작성
 app.post('/api/posts', authenticateToken, (req, res) => {
-  const { title, body, tag='잡담', images=[] } = req.body;
+  const { title, body, tag='잡담' } = req.body;
   if (!title?.trim() || !body?.trim())
     return res.status(400).json({ error: '제목과 내용을 적어주세요.' });
   if (tag === '공지' && req.user.role !== 'ADMIN')
     return res.status(403).json({ error: '공지 글은 관리자만 쓸 수 있습니다.' });
-  
-  const hasImgFlag = (images && images.length > 0) ? 1 : 0;
-
-  const id = run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
-    [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
-  
-  // 전송받은 Base64 데이터를 개별 매핑 레코드로 삽입
-  if (images && images.length > 0) {
-    images.forEach(imgData => {
-      run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
-    });
-  }
-
+  const id = run('INSERT INTO posts (user_id,title,body,tag,nick) VALUES (?,?,?,?,?)',
+    [req.user.id, title.trim(), body.trim(), tag, req.user.nickname]);
   res.status(201).json({ id });
 });
 
+// 게시글 추천/비추천
 app.post('/api/posts/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
@@ -255,6 +238,7 @@ app.post('/api/posts/:id/vote', (req, res) => {
   } catch(e) { res.status(500).json({ error: '투표 처리 중 오류.' }); }
 });
 
+// 댓글 작성
 app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   const postId = parseInt(req.params.id);
   const { body } = req.body;
@@ -264,6 +248,7 @@ app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   res.status(201).json({ success: true });
 });
 
+// 댓글 추천/비추천 (※ 예외 라우터보다 위로 이동 완료)
 app.post('/api/comments/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
@@ -279,16 +264,19 @@ app.post('/api/comments/:id/vote', (req, res) => {
   } catch(e) { res.status(500).json({ error: '댓글 투표 실패.' }); }
 });
 
+// 관리자: 게시글 삭제
 app.delete('/api/admin/posts/:id', authenticateToken, isAdmin, (req, res) => {
   run('DELETE FROM posts WHERE id=?', [parseInt(req.params.id)]);
   res.json({ success: true });
 });
 
+// 관리자: 댓글 삭제
 app.delete('/api/admin/comments/:id', authenticateToken, isAdmin, (req, res) => {
   run('DELETE FROM comments WHERE id=?', [parseInt(req.params.id)]);
   res.json({ success: true });
 });
 
+// 통계
 app.get('/api/stats', (req, res) => {
   res.json({
     total:    query("SELECT COUNT(*) as cnt FROM posts")[0]?.cnt || 0,
@@ -297,11 +285,12 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
+// ── 최하단 예외 라우팅 설정 ──────────────────────────────────────────────────
+
+// 알 수 없는 API는 404 (※ 모든 API 라우트 아래에 위치)
 app.use('/api', (req, res) => res.status(404).json({ error: '존재하지 않는 API입니다.' }));
 
-// [교정 완료] index.html이 루트 디렉토리에 위치하므로 경로 탐색 규칙을 정밀 수정
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+// 그 외 모든 요청 → index.html (SPA)
+app.use((req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 initDB().then(() => app.listen(PORT, () => console.log(`🚀 서버 실행 중: http://localhost:${PORT}`)));
