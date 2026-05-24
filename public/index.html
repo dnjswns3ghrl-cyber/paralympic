@@ -75,11 +75,9 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .post-meta { display:flex; gap:14px; font-size:13px; color: var(--tx2); }
 .post-body { font-size:16px; line-height:1.7; white-space:pre-wrap; margin-bottom:30px; min-height:120px; }
 
-/* [디자인 추가] 상세페이지 렌더링용 이미지 그리드 및 컨테이너 */
 .post-images-container { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; width: 100%; }
 .post-images-container img { max-width: 100%; height: auto; border-radius: 8px; cursor: zoom-in; object-fit: contain; border: 1px solid var(--bd); max-height: 500px; }
 
-/* [디자인 추가] 드래그 앤 드롭 파일 업로드 박스 영역 스타일 */
 .upload-dropzone { border: 2px dashed var(--bd2); padding: 24px; border-radius: 8px; text-align: center; background: var(--bg1); cursor: pointer; transition: 0.2s; color: var(--tx1); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .upload-dropzone:hover, .upload-dropzone.dragover { border-color: var(--ac); background: var(--ac-bg); color: var(--ac); }
 .upload-dropzone i { font-size: 32px; color: var(--tx2); }
@@ -91,7 +89,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .preview-item .btn-del { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; }
 .preview-item .btn-del:hover { background: rgba(239,68,68,0.9); }
 
-/* [디자인 추가] 풀스크린 라이트박스 오버레이 창 */
 .lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
 .lightbox-overlay img { max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
 
@@ -149,7 +146,7 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 
     <div class="search-bar">
       <i class="ti ti-search"></i>
-      <input type="text" id="sinp" placeholder="글 제목, 내용 검색..." />
+      <input type="text" id="sinp" placeholder="글 제목, 내용 검색..." autocomplete="off" />
     </div>
     <div class="card" style="padding:8px 20px;">
       <ul id="plist" class="post-list"></ul>
@@ -232,40 +229,41 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
   </div>
 
   <div id="v-auth" class="view" style="display:none">
-    <div class="card" id="box-login">
+    <form class="card" id="box-login" onsubmit="event.preventDefault(); login();" autocomplete="on">
       <h2 style="margin-bottom:15px">로그인</h2>
       <div class="form-group">
-        <label>아이디</label>
-        <input type="text" id="l-user" placeholder="아이디 입력" />
+        <label for="l-user">아이디</label>
+        <input type="text" id="l-user" name="username" placeholder="아이디 입력" autocomplete="username" />
       </div>
       <div class="form-group">
-        <label>비밀번호</label>
-        <input type="password" id="l-pass" placeholder="비밀번호 입력" />
+        <label for="l-pass">비밀번호</label>
+        <input type="password" id="l-pass" name="password" placeholder="비밀번호 입력" autocomplete="current-password" />
       </div>
-      <button class="btn-primary" onclick="login()" style="margin-top:10px;">로그인</button>
+      <button type="submit" class="btn-primary" style="margin-top:10px;">로그인</button>
       <p style="font-size:13px; color:var(--tx2); text-align:center; margin-top:15px;">
         계정이 없으신가요? <span style="color:var(--ac); cursor:pointer; font-weight:500;" onclick="toggleAuthBox(false)">회원가입</span>
       </p>
-    </div>
-    <div class="card" id="box-join" style="display:none">
+    </form>
+
+    <form class="card" id="box-join" style="display:none" onsubmit="event.preventDefault(); register();" autocomplete="off">
       <h2 style="margin-bottom:15px">회원가입</h2>
       <div class="form-group">
-        <label>아이디</label>
-        <input type="text" id="j-user" placeholder="영문, 숫자 포함" />
+        <label for="j-user">아이디</label>
+        <input type="text" id="j-user" name="new-username" placeholder="영문, 숫자 포함" autocomplete="new-username" />
       </div>
       <div class="form-group">
-        <label>비밀번호</label>
-        <input type="password" id="j-pass" placeholder="비밀번호 입력" />
+        <label for="j-pass">비밀번호</label>
+        <input type="password" id="j-pass" name="new-password" placeholder="비밀번호 입력" autocomplete="new-password" />
       </div>
       <div class="form-group">
-        <label>닉네임</label>
-        <input type="text" id="j-nick" placeholder="멋진 닉네임" />
+        <label for="j-nick">닉네임</label>
+        <input type="text" id="j-nick" name="nickname" placeholder="멋진 닉네임" />
       </div>
-      <button class="btn-primary" onclick="register()" style="margin-top:10px;">가입하기</button>
+      <button type="submit" class="btn-primary" style="margin-top:10px;">가입하기</button>
       <p style="font-size:13px; color:var(--tx2); text-align:center; margin-top:15px;">
         이미 계정이 있으신가요? <span style="color:var(--ac); cursor:pointer; font-weight:500;" onclick="toggleAuthBox(true)">로그인</span>
       </p>
-    </div>
+    </form>
   </div>
 
   <div id="v-user" class="view" style="display:none">
@@ -308,8 +306,6 @@ let searchQ = '';
 let currentPostId = null;
 
 let currentUser = { isLoggedIn: false, username: '', nickname: '', role: 'USER' };
-
-// 업로드 대기 이미지를 보관하는 글로벌 가상 전송 배열 세트
 let attachedImages = [];
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -360,6 +356,7 @@ function clickUserIcon() {
 }
 
 function toggleAuthBox(isLogin) {
+  document.getElementById('box-login').style.withChange = isLogin ? 'block' : 'none';
   document.getElementById('box-login').style.display = isLogin ? 'block' : 'none';
   document.getElementById('box-join').style.display = isLogin ? 'none' : 'block';
 }
@@ -442,8 +439,6 @@ function goHome() { showView('list'); }
 function clickFab() {
   if(!currentUser.isLoggedIn) { alert('로그인이 필요합니다.'); toggleAuthBox(true); showView('auth'); return; }
   document.getElementById('title').value = ''; document.getElementById('body').value = ''; document.getElementById('w-tag').value = '잡담';
-  
-  // 글쓰기 전환 시 첨부 배열 리셋 초기화
   attachedImages = [];
   renderUploadPreviews();
   showView('write');
@@ -475,8 +470,6 @@ async function loadPosts() {
       const li = document.createElement('li');
       const tagText = p.tag || '잡담';
       const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
-      
-      // [기능 구현] 이미지가 첨부되어 있다면 타이틀 옆에 📷 아이콘 노출 제어
       const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
 
       li.innerHTML = `
@@ -519,7 +512,6 @@ async function openPost(id) {
     document.getElementById('d-up').textContent = d.post.up;
     document.getElementById('d-down').textContent = d.post.down;
 
-    // [기능 구현] 게시물 상세 페이지 본문 위에 바인딩된 이미지 그리기 
     const imgContainer = document.getElementById('d-images');
     imgContainer.innerHTML = '';
     if (d.images && d.images.length > 0) {
@@ -579,7 +571,6 @@ async function submitPost() {
   if(!title || !body) return alert('모두 채워주세요.');
 
   try {
-    // [기능 구현] 이미지가 첨부되어 있는 배열(attachedImages)을 Body에 실어 함께 전송
     await apiFetch('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -654,7 +645,6 @@ async function loadStats() {
   } catch(e) {}
 }
 
-// ── [신규 추가] 드래그 앤 드롭 & 파일 첨부 비즈니스 로직 핸들러 영역 ──────
 function initUploadEvents() {
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
@@ -671,7 +661,7 @@ function initUploadEvents() {
 
   fileInput.onchange = (e) => {
     handleFiles(e.target.files);
-    fileInput.value = ''; // 동일 파일 재선택 가능 처리
+    fileInput.value = '';
   };
 }
 
@@ -725,7 +715,6 @@ function removeAttachedImage(index) {
   renderUploadPreviews();
 }
 
-// ── [신규 추가] 이미지 확대 라이트박스 로직 ───────────────────────────────────
 function openLightbox(src) {
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightboxImg');
