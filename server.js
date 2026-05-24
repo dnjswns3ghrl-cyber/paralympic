@@ -104,7 +104,9 @@ async function initDB() {
     ["SELECT views   FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN views   INTEGER DEFAULT 0"],
     ["SELECT user_id FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN user_id INTEGER"],
     ["SELECT up      FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN up      INTEGER DEFAULT 0"],
-    ["SELECT down    FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN down    INTEGER DEFAULT 0"],
+    ["SELECT down     FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN down     INTEGER DEFAULT 0"],
+    ["SELECT pinned   FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN pinned   INTEGER DEFAULT 0"],
+    ["SELECT updated_at FROM posts  LIMIT 1", "ALTER TABLE posts    ADD COLUMN updated_at TEXT"],
   ];
   for (const [check, alter] of migrations) {
     try { db.exec(check); } catch(e) {
@@ -201,15 +203,23 @@ app.get('/api/posts', (req, res) => {
   if (tag && tag !== '전체') { where += ' AND tag=?'; params.push(tag); }
   if (q) { where += ' AND (title LIKE ? OR body LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
   
-  const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where}`, params)[0]?.cnt || 0;
-  
-  const queryParams = [...params, perPage, offset];
-  const posts = query(
+  const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where} AND pinned=0`, params)[0]?.cnt || 0;
+
+  // 고정글: 조건 필터만 적용 (페이지네이션 없이 항상 상단 표시)
+  const pinnedPosts = tab !== 'hot' ? query(
     `SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
-     FROM posts p WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
-    queryParams
+     FROM posts p WHERE ${where} AND p.pinned=1 ORDER BY p.id DESC`,
+    params
+  ) : [];
+
+  // 일반글: 고정글 제외
+  const normalPosts = query(
+    `SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
+     FROM posts p WHERE ${where} AND p.pinned=0 ORDER BY p.id DESC LIMIT ? OFFSET ?`,
+    [...params, perPage, offset]
   );
-  res.json({ posts, total, page: parseInt(page), perPage });
+
+  res.json({ posts: normalPosts, pinnedPosts, total, page: parseInt(page), perPage });
 });
 
 // 게시글 단건 조회 (이미지 목록 정상 맵핑)
@@ -257,6 +267,36 @@ app.post('/api/posts', authenticateToken, (req, res) => {
     console.error("🚨 게시글 등록 오류:", err.message);
     res.status(500).json({ error: '데이터베이스 처리 중 오류가 발생했습니다.' });
   }
+});
+
+// 글 수정 (본인 또는 관리자)
+app.put('/api/posts/:id', authenticateToken, (req, res) => {
+  const id = parseInt(req.params.id);
+  const { title, body, tag } = req.body;
+  if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: '제목과 내용을 입력해 주세요.' });
+
+  const posts = query('SELECT user_id FROM posts WHERE id=?', [id]);
+  if (!posts.length) return res.status(404).json({ error: '게시글이 없습니다.' });
+  if (posts[0].user_id !== req.user.id && req.user.role !== 'ADMIN')
+    return res.status(403).json({ error: '수정 권한이 없습니다.' });
+
+  db.run(
+    "UPDATE posts SET title=?, body=?, tag=?, updated_at=datetime('now','localtime') WHERE id=?",
+    [title.trim(), body.trim(), tag || '잡담', id]
+  );
+  saveDB();
+  res.json({ success: true });
+});
+
+// 글 고정/해제 (관리자 전용)
+app.patch('/api/admin/posts/:id/pin', authenticateToken, isAdmin, (req, res) => {
+  const id = parseInt(req.params.id);
+  const posts = query('SELECT pinned FROM posts WHERE id=?', [id]);
+  if (!posts.length) return res.status(404).json({ error: '게시글이 없습니다.' });
+  const newPinned = posts[0].pinned === 1 ? 0 : 1;
+  db.run('UPDATE posts SET pinned=? WHERE id=?', [newPinned, id]);
+  saveDB();
+  res.json({ success: true, pinned: newPinned });
 });
 
 app.post('/api/posts/:id/vote', (req, res) => {

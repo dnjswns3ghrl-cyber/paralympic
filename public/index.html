@@ -117,6 +117,17 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .cmt-input-box button { padding:0 18px; border-radius:6px; background: var(--ac); color:#fff; font-weight:500; font-size:14px; }
 
 .admin-badge { background: var(--hot-bg); color: var(--hot-tx); border:1px solid var(--hot); font-size:11px; padding:1px 5px; border-radius:3px; font-weight:bold; margin-left:6px; }
+
+/* 고정글 */
+.pinned-post { background: var(--ac-bg); border-left: 3px solid var(--ac); }
+.pinned-post:hover .t { color: var(--ac); }
+.pin-badge { background: var(--ac); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 4px; margin-right: 6px; letter-spacing: 0.3px; }
+.pin-divider { border: none; border-top: 1px dashed var(--bd2); margin: 4px 0; }
+
+/* 수정 뷰 */
+#v-edit .card { /* 글쓰기와 동일 스타일 재사용 */ }
+.edited-mark { font-size: 11px; color: var(--tx2); margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -178,7 +189,9 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
       <div class="vote-zone">
         <button class="btn-vote up" onclick="vote('up')"><i class="ti ti-thumb-up"></i> 개추 <span id="d-up">0</span></button>
         <button class="btn-vote down" onclick="vote('down')"><i class="ti ti-thumb-down"></i> 비추 <span id="d-down">0</span></button>
-        <button class="btn-vote" id="d-admin-del" style="display:none; color:var(--hot);" onclick="deletePostByAdmin()"><i class="ti ti-trash"></i> 삭제(관리자)</button>
+        <button class="btn-vote" id="d-edit-btn" style="display:none;" onclick="openEdit()"><i class="ti ti-pencil"></i> 수정</button>
+        <button class="btn-vote" id="d-pin-btn" style="display:none;" onclick="togglePin()"><i class="ti ti-pin"></i> <span id="d-pin-label">고정</span></button>
+        <button class="btn-vote" id="d-admin-del" style="display:none; color:var(--hot);" onclick="deletePostByAdmin()"><i class="ti ti-trash"></i> 삭제</button>
       </div>
       <div class="cmt-section">
         <h3>댓글 <span id="d-ccnt" style="color:var(--ac)">0</span></h3>
@@ -225,6 +238,34 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
       <div style="display:flex; gap:10px; margin-top:15px;">
         <button class="btn-primary" style="background:var(--bg2); color:var(--tx1);" onclick="goHome()">취소</button>
         <button id="w-submit-btn" class="btn-primary" onclick="submitPost()">등록하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 글 수정 뷰 -->
+  <div id="v-edit" class="view" style="display:none">
+    <div class="card">
+      <h2 style="margin-bottom:15px">글 수정</h2>
+      <div class="form-group">
+        <label>말머리</label>
+        <select id="e-tag">
+          <option value="잡담">💬 잡담</option>
+          <option value="사진">📷 사진</option>
+          <option value="질문">❓ 질문</option>
+          <option value="공지">📢 공지 (관리자 전용)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>제목</label>
+        <input type="text" id="e-title" placeholder="제목을 입력하세요" />
+      </div>
+      <div class="form-group">
+        <label>내용</label>
+        <textarea id="e-body" rows="10" placeholder="내용을 입력하세요."></textarea>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:15px;">
+        <button class="btn-primary" style="background:var(--bg2); color:var(--tx1);" onclick="cancelEdit()">취소</button>
+        <button id="e-submit-btn" class="btn-primary" onclick="submitEdit()">수정 완료</button>
       </div>
     </div>
   </div>
@@ -432,7 +473,7 @@ function logout() {
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
   document.getElementById(`v-${id}`).style.display = 'block';
-  document.getElementById('fabBtn').style.display = (id === 'write' || id === 'auth' || id === 'user') ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (id === 'write' || id === 'edit' || id === 'auth' || id === 'user') ? 'none' : 'flex';
   window.scrollTo(0,0);
 }
 function goHome() { showView('list'); }
@@ -459,6 +500,26 @@ function setTagFilter(tag) {
   document.getElementById(`ttab-${tag}`).classList.add('active'); loadPosts();
 }
 
+function makePostLi(p, isPinned) {
+  const li = document.createElement('li');
+  if (isPinned) li.className = 'pinned-post';
+  const tagText = p.tag || '잡담';
+  const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
+  const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
+  li.innerHTML = `
+    <span class="t">
+      ${isPinned ? '<span class="pin-badge">📌 고정</span>' : (p.hot === 1 ? '<span class="hot-badge">인기</span>' : '')}
+      <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
+      ${esc(p.title)}
+      ${imgIcon}
+      ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
+    </span>
+    <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
+  `;
+  li.onclick = () => openPost(p.id);
+  return li;
+}
+
 async function loadPosts() {
   try {
     const url = `/api/posts?tab=${curTab}&page=${curPage}&tag=${encodeURIComponent(curTag)}&q=${encodeURIComponent(searchQ)}`;
@@ -466,28 +527,20 @@ async function loadPosts() {
     const ul = document.getElementById('plist');
     ul.innerHTML = '';
 
-    if(!d.posts || d.posts.length === 0) {
-      ul.innerHTML = `<li style="justify-content:center;color:var(--tx2);font-size:14px;padding:30px 0;">게시글이 없습니다.</li>`;
-    } else {
-      d.posts.forEach(p => {
-        const li = document.createElement('li');
-        const tagText = p.tag || '잡담';
-        const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
-        const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
+    // 고정글 상단 렌더링 (1페이지 + hot탭 아닐 때만)
+    if (d.pinnedPosts && d.pinnedPosts.length > 0 && curPage === 1 && curTab !== 'hot') {
+      d.pinnedPosts.forEach(p => ul.appendChild(makePostLi(p, true)));
+      const hr = document.createElement('hr');
+      hr.className = 'pin-divider';
+      ul.appendChild(hr);
+    }
 
-        li.innerHTML = `
-          <span class="t">
-            ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
-            <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
-            ${esc(p.title)}
-            ${imgIcon}
-            ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
-          </span>
-          <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
-        `;
-        li.onclick = () => openPost(p.id);
-        ul.appendChild(li);
-      });
+    if (!d.posts || d.posts.length === 0) {
+      if (!d.pinnedPosts || d.pinnedPosts.length === 0) {
+        ul.innerHTML = `<li style="justify-content:center;color:var(--tx2);font-size:14px;padding:30px 0;">게시글이 없습니다.</li>`;
+      }
+    } else {
+      d.posts.forEach(p => ul.appendChild(makePostLi(p, false)));
     }
 
     const totalPages = Math.ceil(d.total / d.perPage) || 1;
@@ -505,6 +558,7 @@ async function openPost(id) {
   try {
     const d = await apiFetch(`/api/posts/${id}`);
     currentPostId = d.post.id;
+    window._currentPost = d.post; // 수정 시 참조용
 
     const tagText = d.post.tag || '잡담';
     const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
@@ -531,7 +585,33 @@ async function openPost(id) {
       });
     }
 
+    // 수정 버튼: 본인 또는 관리자
+    const isOwner = currentUser.isLoggedIn && d.post.user_id === undefined ? false : true;
+    const canEdit = currentUser.isLoggedIn && (currentUser.role === 'ADMIN' || d.post.nick === currentUser.nickname);
+    document.getElementById('d-edit-btn').style.display = canEdit ? 'flex' : 'none';
+
+    // 고정 버튼: 관리자만
+    const pinBtn = document.getElementById('d-pin-btn');
+    const pinLabel = document.getElementById('d-pin-label');
+    if (currentUser.isLoggedIn && currentUser.role === 'ADMIN') {
+      pinBtn.style.display = 'flex';
+      pinLabel.textContent = d.post.pinned === 1 ? '고정 해제' : '고정';
+      pinBtn.style.color = d.post.pinned === 1 ? 'var(--ac)' : '';
+    } else {
+      pinBtn.style.display = 'none';
+    }
+
+    // 삭제 버튼: 관리자만
     document.getElementById('d-admin-del').style.display = (currentUser.isLoggedIn && currentUser.role === 'ADMIN') ? 'flex' : 'none';
+
+    // 수정됨 표시
+    if (d.post.updated_at) {
+      document.getElementById('d-date').innerHTML =
+        fmtDate(d.post.created_at) +
+        `<span class="edited-mark">(수정됨 ${fmtDate(d.post.updated_at)})</span>`;
+    } else {
+      document.getElementById('d-date').textContent = fmtDate(d.post.created_at);
+    }
 
     renderComments(d.comments);
     document.getElementById('cinp').value = '';
@@ -644,6 +724,52 @@ async function voteComment(commentId, type) {
     });
     alert('반영되었습니다.');
     await openPost(currentPostId);
+  } catch(e) { alert(e.message); }
+}
+
+// 글 수정 열기
+function openEdit() {
+  const post = window._currentPost;
+  if (!post) return;
+  document.getElementById('e-title').value = post.title;
+  document.getElementById('e-body').value = post.body;
+  document.getElementById('e-tag').value = post.tag || '잡담';
+  showView('edit');
+}
+
+function cancelEdit() {
+  showView('detail');
+}
+
+async function submitEdit() {
+  const title = document.getElementById('e-title').value.trim();
+  const body = document.getElementById('e-body').value.trim();
+  const tag = document.getElementById('e-tag').value;
+  if (!title || !body) return alert('제목과 내용을 입력해 주세요.');
+
+  const btn = document.getElementById('e-submit-btn');
+  btn.disabled = true; btn.textContent = '수정 중...';
+  try {
+    await apiFetch(`/api/posts/${currentPostId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, tag })
+    });
+    await openPost(currentPostId);
+    showView('detail');
+  } catch(e) { alert(e.message); }
+  finally { btn.disabled = false; btn.textContent = '수정 완료'; }
+}
+
+// 고정/해제 토글
+async function togglePin() {
+  try {
+    const d = await apiFetch(`/api/admin/posts/${currentPostId}/pin`, { method: 'PATCH' });
+    const pinLabel = document.getElementById('d-pin-label');
+    pinLabel.textContent = d.pinned === 1 ? '고정 해제' : '고정';
+    document.getElementById('d-pin-btn').style.color = d.pinned === 1 ? 'var(--ac)' : '';
+    await loadPosts();
+    alert(d.pinned === 1 ? '📌 글이 상단에 고정되었습니다.' : '고정이 해제되었습니다.');
   } catch(e) { alert(e.message); }
 }
 
