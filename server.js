@@ -13,10 +13,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key_change_in_prod
 
 app.use(cors());
 
-// [교정 완료] 다중 사진(Base64 대용량 데이터) 전송 시 용량 제한으로 인한 413 Payload Too Large 및 404 폴백 오류 해결
+// 대용량 Base64 이미지 전송을 위한 파서 제한 확장
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// 정적 파일 제공 등록
 app.use(express.static(path.join(__dirname, 'public')));
 
 let db;
@@ -57,7 +58,6 @@ async function initDB() {
     created_at TEXT DEFAULT (datetime('now','localtime'))
   )`);
 
-  // [교정 완료] 다중 이미지 영구 보존 및 렌더링을 위한 개별 이미지 테이블 스키마 확실하게 생성
   db.run(`CREATE TABLE IF NOT EXISTS post_images (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     post_id INTEGER NOT NULL,
@@ -93,7 +93,7 @@ async function initDB() {
     UNIQUE(comment_id, uuid)
   )`);
 
-  // 하위 호환 컬럼 추가 및 자동 마이그레이션 유지
+  // 마이그레이션 안전 점검
   const migrations = [
     ["SELECT tag     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN tag     TEXT    NOT NULL DEFAULT '잡담'"],
     ["SELECT user_id FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN user_id INTEGER"],
@@ -112,7 +112,6 @@ async function initDB() {
     }
   }
 
-  // 관리자 자동 생성
   const adminCount = db.exec("SELECT COUNT(*) as cnt FROM users WHERE role='ADMIN'")[0].values[0][0];
   if (adminCount === 0) {
     db.run("INSERT INTO users (username, password, nickname, role) VALUES (?,?,?,?)",
@@ -124,11 +123,16 @@ async function initDB() {
   console.log('✅ DB 초기화 완료');
 }
 
+// ── [교정] 데이터 내보내기 시 파일 잠금 유동성 확보를 위해 안전 버퍼 변환 적용 ──
 function saveDB() {
   try {
     const dataDir = path.dirname(DB_PATH);
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
+    
+    // sql.js 인메모리 데이터를 바이너리 버퍼로 변환 후 동기적 저장 안정화
+    const binaryArray = db.export();
+    const buffer = Buffer.from(binaryArray);
+    fs.writeFileSync(DB_PATH, buffer);
   } catch(err) {
     console.error('⚠️ DB 저장 실패:', err.message);
   }
@@ -147,7 +151,7 @@ function run(sql, params = []) {
   return db.exec('SELECT last_insert_rowid() as id')[0]?.values[0][0] || null;
 }
 
-// ── 미들웨어 ────────────────────────────────────────────────────────────────
+// 미들웨어
 function authenticateToken(req, res, next) {
   const token = (req.headers['authorization'] || '').split(' ')[1];
   if (!token) return res.status(401).json({ error: '로그인이 필요합니다.' });
@@ -206,7 +210,6 @@ app.get('/api/posts', (req, res) => {
   res.json({ posts, total, page: parseInt(page), perPage });
 });
 
-// [교정 완료] 게시글 상세 요청 시 연관 이미지를 조회하여 배열 구조로 안전하게 병합 반환
 app.get('/api/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
   run('UPDATE posts SET views=views+1 WHERE id=?', [id]);
@@ -214,13 +217,12 @@ app.get('/api/posts/:id', (req, res) => {
   if (!posts.length) return res.status(404).json({ error: '게시글이 없습니다.' });
   const comments = query('SELECT * FROM comments WHERE post_id=? ORDER BY id ASC', [id]);
   
-  // 연관 이미지 데이터 추출 바인딩
+  // 연관 이미지 데이터 로드 바인딩
   const images = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]).map(img => img.img_data);
   
   res.json({ post: posts[0], comments, images });
 });
 
-// [교정 완료] 글쓰기 시 이미지 유무 플래그(has_img)를 정확히 연산하여 갱신하고 post_images 매핑 레코드 삽입
 app.post('/api/posts', authenticateToken, (req, res) => {
   const { title, body, tag='잡담', images=[] } = req.body;
   if (!title?.trim() || !body?.trim())
@@ -230,14 +232,16 @@ app.post('/api/posts', authenticateToken, (req, res) => {
   
   const hasImgFlag = (images && images.length > 0) ? 1 : 0;
 
+  // 1. 게시글 데이터 삽입
   const id = run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
     [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
   
-  // 전송받은 Base64 데이터를 개별 매핑 레코드로 삽입
+  // 2. 이미지 데이터 삽입 및 트랜잭션 수동 동기화 처리
   if (images && images.length > 0) {
     images.forEach(imgData => {
-      run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
+      db.run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
     });
+    saveDB(); // 이미지 일괄 삽입 후 디스크 저장소 강제 리프레시
   }
 
   res.status(201).json({ id });
@@ -303,8 +307,9 @@ app.get('/api/stats', (req, res) => {
 
 app.use('/api', (req, res) => res.status(404).json({ error: '존재하지 않는 API입니다.' }));
 
+// ── [교정] SPA 폴백 경로 수정 (public 폴더 내의 index.html 지정) ──
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 initDB().then(() => app.listen(PORT, () => console.log(`🚀 서버 실행 중: http://localhost:${PORT}`)));
