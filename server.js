@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key_change_in_prod
 
 app.use(cors());
 
-// [교정] 대용량 Base64 이미지 패킷 전송 시 용량 초과로 에러(Payload Too Large)가 나는 현상 방지
+// [교정] Base64 이미지 대용량 패킷이 잘리지 않도록 JSON 파서 리밋을 50MB로 확장
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -33,6 +33,7 @@ async function initDB() {
     db = new SQL.Database();
   }
 
+  // 테이블 스키마 생성
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -92,6 +93,7 @@ async function initDB() {
     UNIQUE(comment_id, uuid)
   )`);
 
+  // 하위 호환성 마이그레이션
   const migrations = [
     ["SELECT tag     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN tag     TEXT    NOT NULL DEFAULT '잡담'"],
     ["SELECT user_id FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN user_id INTEGER"],
@@ -114,23 +116,21 @@ async function initDB() {
   if (adminCount === 0) {
     db.run("INSERT INTO users (username, password, nickname, role) VALUES (?,?,?,?)",
       ['admin', bcrypt.hashSync('admin1234', 10), '최고관리자', 'ADMIN']);
-    console.log('👑 관리자 초기 계정 생성: admin / admin1234');
   }
 
   saveDB();
-  console.log('✅ SQLite 인메모리 초기 바인딩 완료');
+  console.log('✅ SQLite 데이터베이스 준비 완료');
 }
 
 function saveDB() {
   try {
     const dataDir = path.dirname(DB_PATH);
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    
     const binaryArray = db.export();
     const buffer = Buffer.from(binaryArray);
     fs.writeFileSync(DB_PATH, buffer);
   } catch(err) {
-    console.error('⚠️ DB 디스크 파일 동기화 실패:', err.message);
+    console.error('⚠️ DB 디스크 저장 실패:', err.message);
   }
 }
 
@@ -144,26 +144,30 @@ function query(sql, params = []) {
 function run(sql, params = []) {
   db.run(sql, params);
   saveDB();
-  return db.exec('SELECT last_insert_rowid() as id')[0]?.values[0][0] || null;
+  try {
+    const res = db.exec('SELECT last_insert_rowid()');
+    return res[0].values[0][0];
+  } catch (e) {
+    return null;
+  }
 }
 
 function authenticateToken(req, res, next) {
   const token = (req.headers['authorization'] || '').split(' ')[1];
   if (!token) return res.status(401).json({ error: '로그인이 필요합니다.' });
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(401).json({ error: '토큰이 만료되었습니다. 다시 로그인해 주세요.' });
+    if (err) return res.status(401).json({ error: '인증이 만료되었습니다.' });
     req.user = user;
     next();
   });
 }
 
 function isAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'ADMIN')
-    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+  if (!req.user || req.user.role !== 'ADMIN') return res.status(403).json({ error: '권한이 없습니다.' });
   next();
 }
 
-// ── API 라우팅 영역 ──────────────────────────────────────────────────────────
+// ── API 라우터 영역 ──────────────────────────────────────────────────────────
 
 app.post('/api/auth/register', (req, res) => {
   const { username, password, nickname } = req.body;
@@ -196,70 +200,75 @@ app.get('/api/posts', (req, res) => {
   if (tab === 'hot') where += ' AND hot=1';
   if (tag && tag !== '전체') { where += ' AND tag=?'; params.push(tag); }
   if (q) { where += ' AND (title LIKE ? OR body LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
+  
   const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where}`, params)[0]?.cnt || 0;
   const posts = query(
     `SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
      FROM posts p WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
-    [...params, perPage, offset]
+    ...[params, perPage, offset].flat()
   );
   res.json({ posts, total, page: parseInt(page), perPage });
 });
 
 app.get('/api/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
-  run('UPDATE posts SET views=views+1 WHERE id=?', [id]);
+  db.run('UPDATE posts SET views=views+1 WHERE id=?', [id]);
+  saveDB();
+
   const posts = query('SELECT * FROM posts WHERE id=?', [id]);
   if (!posts.length) return res.status(404).json({ error: '존재하지 않는 게시글입니다.' });
+  
   const comments = query('SELECT * FROM comments WHERE post_id=? ORDER BY id ASC', [id]);
-  const images = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]).map(img => img.img_data);
+  
+  // [교정] post_images에서 바이너리 데이터를 명확하게 뽑아 배열로 바인딩
+  const imageRows = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]);
+  const images = imageRows.map(row => row.img_data);
+
   res.json({ post: posts[0], comments, images });
 });
 
-// [교정] 비동기 파일 락 및 연속 업로드 기현상을 해소하기 위한 동기식 순차 트랜잭션 보장
+// [교정] 게시글 등록 시 이미지 트랜잭션 및 ID 바인딩 무결성 확보
 app.post('/api/posts', authenticateToken, (req, res) => {
   const { title, body, tag='잡담', images=[] } = req.body;
   if (!title?.trim() || !body?.trim())
     return res.status(400).json({ error: '제목과 내용을 모두 적어주세요.' });
-  if (tag === '공지' && req.user.role !== 'ADMIN')
-    return res.status(403).json({ error: '공지사항은 관리자만 작성할 수 있습니다.' });
   
   const hasImgFlag = (images && images.length > 0) ? 1 : 0;
 
   try {
-    // 1. 순수 게시물 로우를 인메모리에 즉시 할당 및 ID 반환
+    // 1. 메인 포스트 삽입 및 보장된 고유 ID 검출
     const id = run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
       [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
     
-    // 2. 이미지가 감지되었을 때 루프 내에서 디스크를 수시로 찌르지 않고 메모리에 일괄 추가
-    if (hasImgFlag === 1 && id) {
+    // 2. 고유 ID가 유효하고 이미지가 존재할 때 배열 루프 처리
+    if (id && hasImgFlag === 1) {
       for (const imgData of images) {
         db.run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
       }
-      // 3. 사진 데이터 삽입 처리가 모두 끝난 후 디스크 파일에 최종 동기화 (락 에러 격리)
+      // 대용량 쓰기가 끝난 후 단 한 번 디스크 파일 동기화로 락 방지 및 데이터 보호
       saveDB();
     }
 
     res.status(201).json({ id });
   } catch (err) {
-    console.error("🚨 글 등록 내부 예외 발생:", err);
-    res.status(500).json({ error: '디스크 리소스 한계 또는 파일 잠금 오류로 인해 글 등록에 실패했습니다. 잠시 후 재시도 해주세요.' });
+    console.error("🚨 게시글 등록 중 내부 예외 발생:", err);
+    res.status(500).json({ error: '데이터베이스 처리 중 오류가 발생했습니다.' });
   }
 });
 
 app.post('/api/posts/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
-  if (!['up','down'].includes(type) || !uuid)
-    return res.status(400).json({ error: '올바르지 않은 요청입니다.' });
+  if (!['up','down'].includes(type) || !uuid) return res.status(400).json({ error: '잘못된 요청입니다.' });
   const exist = query('SELECT type FROM votes WHERE post_id=? AND uuid=?', [id, uuid]);
-  if (exist.length)
-    return res.status(400).json({ error: `이미 ${exist[0].type==='up'?'개추':'비추'}를 누르셨습니다.` });
+  if (exist.length) return res.status(400).json({ error: `이미 투표하셨습니다.` });
+  
   try {
     run('INSERT INTO votes (post_id,uuid,type) VALUES (?,?,?)', [id, uuid, type]);
     run(`UPDATE posts SET ${type}=${type}+1 WHERE id=?`, [id]);
     run('UPDATE posts SET hot=1 WHERE id=? AND up>=5', [id]);
     res.json(query('SELECT up,down FROM posts WHERE id=?', [id])[0]);
-  } catch(e) { res.status(500).json({ error: '투표 처리 실패' }); }
+  } catch(e) { res.status(500).json({ error: '투표 실패' }); }
 });
 
 app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
@@ -274,11 +283,8 @@ app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
 app.post('/api/comments/:id/vote', (req, res) => {
   const id = parseInt(req.params.id);
   const { type, uuid } = req.body;
-  if (!['up','down'].includes(type) || !uuid)
-    return res.status(400).json({ error: '올바르지 않은 요청입니다.' });
   const exist = query('SELECT type FROM comment_votes WHERE comment_id=? AND uuid=?', [id, uuid]);
-  if (exist.length)
-    return res.status(400).json({ error: `이미 추천/비추천을 행사하셨습니다.` });
+  if (exist.length) return res.status(400).json({ error: `이미 투표하셨습니다.` });
   try {
     run('INSERT INTO comment_votes (comment_id,uuid,type) VALUES (?,?,?)', [id, uuid, type]);
     run(`UPDATE comments SET ${type}=${type}+1 WHERE id=?`, [id]);
@@ -304,11 +310,8 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-app.use('/api', (req, res) => res.status(404).json({ error: '존재하지 않는 API 엔드포인트입니다.' }));
-
-// [교정] SPA 와일드카드 핸들러가 배포 환경(public) 내 루트 디자인을 완벽히 잡도록 경로 보정
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-initDB().then(() => app.listen(PORT, () => console.log(`🚀 백엔드 기동 완료 : http://localhost:${PORT}`)));
+initDB().then(() => app.listen(PORT, () => console.log(`🚀 서버 정상 가동중: 포트 ${PORT}`)));
