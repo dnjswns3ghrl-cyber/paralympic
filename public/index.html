@@ -373,6 +373,7 @@ async function apiFetch(url, options = {}) {
     throw new Error('서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.');
   }
 
+  // 토큰 만료 시 자동 로그아웃
   if (res.status === 401) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -382,8 +383,12 @@ async function apiFetch(url, options = {}) {
   }
 
   const contentType = res.headers.get('content-type') || '';
+  
+  // 변경된 부분: JSON이 아닐 경우 서버의 실제 응답 본문을 콘솔에 찍어 디버깅을 돕습니다.
   if (!contentType.includes('application/json')) {
-    throw new Error('서버 응답 오류입니다. 잠시 후 다시 시도해 주세요.');
+    const textError = await res.text().catch(() => '');
+    console.error('서버에서 JSON이 아닌 응답을 보냈습니다. 받은 내용:', textError);
+    throw new Error(`서버 응답 오류 (상태코드: ${res.status}). 개발자 도구 콘솔을 확인하세요.`);
   }
 
   const data = await res.json();
