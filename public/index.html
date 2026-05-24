@@ -465,29 +465,29 @@ async function loadPosts() {
     const ul = document.getElementById('plist');
     ul.innerHTML = '';
 
-    if(d.posts.length === 0) {
+    if(!d.posts || d.posts.length === 0) {
       ul.innerHTML = `<li style="justify-content:center;color:var(--tx2);font-size:14px;padding:30px 0;">게시글이 없습니다.</li>`;
+    } else {
+      d.posts.forEach(p => {
+        const li = document.createElement('li');
+        const tagText = p.tag || '잡담';
+        const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
+        const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
+
+        li.innerHTML = `
+          <span class="t">
+            ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
+            <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
+            ${esc(p.title)}
+            ${imgIcon}
+            ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
+          </span>
+          <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
+        `;
+        li.onclick = () => openPost(p.id);
+        ul.appendChild(li);
+      });
     }
-
-    d.posts.forEach(p => {
-      const li = document.createElement('li');
-      const tagText = p.tag || '잡담';
-      const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
-      const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
-
-      li.innerHTML = `
-        <span class="t">
-          ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
-          <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
-          ${esc(p.title)}
-          ${imgIcon}
-          ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
-        </span>
-        <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
-      `;
-      li.onclick = () => openPost(p.id);
-      ul.appendChild(li);
-    });
 
     const totalPages = Math.ceil(d.total / d.perPage) || 1;
     document.getElementById('pnum').textContent = `${d.page} / ${totalPages}`;
@@ -515,7 +515,6 @@ async function openPost(id) {
     document.getElementById('d-up').textContent = d.post.up;
     document.getElementById('d-down').textContent = d.post.down;
 
-    // [교정] 상세 정보 보기 시 이미지 배열을 돌면서 본문에 이미지를 확실히 출력
     const imgContainer = document.getElementById('d-images');
     imgContainer.innerHTML = '';
     if (d.images && d.images.length > 0) {

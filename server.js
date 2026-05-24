@@ -141,6 +141,7 @@ function query(sql, params = []) {
   return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
 }
 
+// [교정] 데이터 삽입 후 새로 갱신된 행의 고유 ID(rowid)를 안전하게 반환하도록 수정
 function run(sql, params = []) {
   db.run(sql, params);
   saveDB();
@@ -193,6 +194,7 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, token, user: { username: user.username, nickname: user.nickname, role: user.role } });
 });
 
+// [교정] 전개 연산자(...flat()) 문법 오류를 제거하고 단일 파라미터 배열 구조로 안정화
 app.get('/api/posts', (req, res) => {
   const { tab='all', page=1, q='', tag='' } = req.query;
   const perPage = 10, offset = (parseInt(page)-1) * perPage;
@@ -202,10 +204,13 @@ app.get('/api/posts', (req, res) => {
   if (q) { where += ' AND (title LIKE ? OR body LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
   
   const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where}`, params)[0]?.cnt || 0;
+  
+  // 파라미터를 단일 배열로 정렬하여 바인딩
+  const queryParams = [...params, perPage, offset];
   const posts = query(
     `SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
      FROM posts p WHERE ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?`,
-    ...[params, perPage, offset].flat()
+    queryParams
   );
   res.json({ posts, total, page: parseInt(page), perPage });
 });
@@ -220,14 +225,14 @@ app.get('/api/posts/:id', (req, res) => {
   
   const comments = query('SELECT * FROM comments WHERE post_id=? ORDER BY id ASC', [id]);
   
-  // [교정] post_images에서 바이너리 데이터를 명확하게 뽑아 배열로 바인딩
+  // post_images 테이블에서 해당 글의 이미지 바이너리 목록을 명확히 배열로 매핑
   const imageRows = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]);
   const images = imageRows.map(row => row.img_data);
 
   res.json({ post: posts[0], comments, images });
 });
 
-// [교정] 게시글 등록 시 이미지 트랜잭션 및 ID 바인딩 무결성 확보
+// [교정] 게시글 등록 시 정상적인 반환 ID 값을 검증하여 유실 없이 이미지 연동 처리
 app.post('/api/posts', authenticateToken, (req, res) => {
   const { title, body, tag='잡담', images=[] } = req.body;
   if (!title?.trim() || !body?.trim())
@@ -236,16 +241,13 @@ app.post('/api/posts', authenticateToken, (req, res) => {
   const hasImgFlag = (images && images.length > 0) ? 1 : 0;
 
   try {
-    // 1. 메인 포스트 삽입 및 보장된 고유 ID 검출
     const id = run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
       [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
     
-    // 2. 고유 ID가 유효하고 이미지가 존재할 때 배열 루프 처리
     if (id && hasImgFlag === 1) {
       for (const imgData of images) {
         db.run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
       }
-      // 대용량 쓰기가 끝난 후 단 한 번 디스크 파일 동기화로 락 방지 및 데이터 보호
       saveDB();
     }
 
