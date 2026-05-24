@@ -238,18 +238,23 @@ app.post('/api/posts', authenticateToken, (req, res) => {
   const hasImgFlag = (images && images.length > 0) ? 1 : 0;
 
   try {
-    const id = run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
+    // run()이 null을 반환할 수 있으므로 postId를 직접 조회
+    db.run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
       [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
-    
-    if (id && hasImgFlag === 1) {
+    const postId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+    saveDB();
+
+    if (hasImgFlag === 1 && postId) {
       for (const imgData of images) {
-        db.run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [id, imgData]);
+        // data:image/xxx;base64, 접두어가 있으면 그대로, 없으면 그대로 저장
+        db.run('INSERT INTO post_images (post_id, img_data) VALUES (?, ?)', [postId, imgData]);
       }
       saveDB();
+      console.log(`✅ 이미지 ${images.length}장 저장 완료 (post_id: ${postId})`);
     }
-    res.status(201).json({ id });
+    res.status(201).json({ id: postId });
   } catch (err) {
-    console.error("🚨 게시글 등록 오류:", err);
+    console.error("🚨 게시글 등록 오류:", err.message);
     res.status(500).json({ error: '데이터베이스 처리 중 오류가 발생했습니다.' });
   }
 });
