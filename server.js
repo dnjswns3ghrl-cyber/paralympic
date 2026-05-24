@@ -65,6 +65,16 @@ async function initDB() {
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
   )`);
 
+  // 이미지 테이블
+  db.run(`CREATE TABLE IF NOT EXISTS images (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id    INTEGER NOT NULL,
+    data       TEXT NOT NULL,
+    mime_type  TEXT NOT NULL DEFAULT 'image/jpeg',
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+  )`);
+
   db.run(`CREATE TABLE IF NOT EXISTS votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     post_id INTEGER NOT NULL,
@@ -95,6 +105,18 @@ async function initDB() {
     ["SELECT up      FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN up      INTEGER DEFAULT 0"],
     ["SELECT down    FROM comments LIMIT 1", "ALTER TABLE comments ADD COLUMN down    INTEGER DEFAULT 0"],
   ];
+  // images 테이블 없으면 생성
+  try { db.exec("SELECT id FROM images LIMIT 1"); } catch(e) {
+    db.run(`CREATE TABLE IF NOT EXISTS images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+    )`);
+    console.log('🔧 images 테이블 생성');
+  }
   for (const [check, alter] of migrations) {
     try { db.exec(check); } catch(e) {
       try { db.run(alter); console.log('🔧 마이그레이션:', alter); } catch(err) {}
@@ -209,16 +231,45 @@ app.get('/api/posts/:id', (req, res) => {
   res.json({ post: posts[0], comments });
 });
 
-// 게시글 작성
+// 게시글 작성 (이미지 포함)
 app.post('/api/posts', authenticateToken, (req, res) => {
-  const { title, body, tag='잡담' } = req.body;
+  const { title, body, tag='잡담', images=[] } = req.body;
   if (!title?.trim() || !body?.trim())
     return res.status(400).json({ error: '제목과 내용을 적어주세요.' });
   if (tag === '공지' && req.user.role !== 'ADMIN')
     return res.status(403).json({ error: '공지 글은 관리자만 쓸 수 있습니다.' });
-  const id = run('INSERT INTO posts (user_id,title,body,tag,nick) VALUES (?,?,?,?,?)',
-    [req.user.id, title.trim(), body.trim(), tag, req.user.nickname]);
-  res.status(201).json({ id });
+  if (images.length > 5)
+    return res.status(400).json({ error: '사진은 최대 5장까지 첨부할 수 있습니다.' });
+
+  // 이미지 용량 체크 (장당 최대 5MB)
+  for (const img of images) {
+    const sizeBytes = (img.data.length * 3) / 4;
+    if (sizeBytes > 5 * 1024 * 1024)
+      return res.status(400).json({ error: '이미지 1장당 최대 5MB까지 첨부 가능합니다.' });
+  }
+
+  const hasImg = images.length > 0 ? 1 : 0;
+  // run()의 반환값 대신 last_insert_rowid()를 직접 조회
+  db.run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
+    [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImg]);
+  const postId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
+  saveDB();
+
+  // 이미지 저장
+  for (const img of images) {
+    db.run('INSERT INTO images (post_id,data,mime_type) VALUES (?,?,?)',
+      [postId, img.data, img.mimeType || 'image/jpeg']);
+  }
+  if (images.length > 0) saveDB();
+
+  res.status(201).json({ id: postId });
+});
+
+// 게시글 이미지 조회
+app.get('/api/posts/:id/images', (req, res) => {
+  const id = parseInt(req.params.id);
+  const imgs = query('SELECT id, mime_type, data FROM images WHERE post_id=? ORDER BY id ASC', [id]);
+  res.json(imgs);
 });
 
 // 게시글 추천/비추천
