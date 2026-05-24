@@ -75,6 +75,26 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .post-meta { display:flex; gap:14px; font-size:13px; color: var(--tx2); }
 .post-body { font-size:16px; line-height:1.7; white-space:pre-wrap; margin-bottom:30px; min-height:120px; }
 
+/* [디자인 추가] 상세페이지 렌더링용 이미지 그리드 및 컨테이너 */
+.post-images-container { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; width: 100%; }
+.post-images-container img { max-width: 100%; height: auto; border-radius: 8px; cursor: zoom-in; object-fit: contain; border: 1px solid var(--bd); max-height: 500px; }
+
+/* [디자인 추가] 드래그 앤 드롭 파일 업로드 박스 영역 스타일 */
+.upload-dropzone { border: 2px dashed var(--bd2); padding: 24px; border-radius: 8px; text-align: center; background: var(--bg1); cursor: pointer; transition: 0.2s; color: var(--tx1); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.upload-dropzone:hover, .upload-dropzone.dragover { border-color: var(--ac); background: var(--ac-bg); color: var(--ac); }
+.upload-dropzone i { font-size: 32px; color: var(--tx2); }
+.upload-dropzone:hover i, .upload-dropzone.dragover i { color: var(--ac); }
+
+.preview-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.preview-item { width: 80px; height: 80px; border-radius: 6px; border: 1px solid var(--bd); position: relative; overflow: hidden; background: #fff; }
+.preview-item img { width: 100%; height: 100%; object-fit: cover; }
+.preview-item .btn-del { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; }
+.preview-item .btn-del:hover { background: rgba(239,68,68,0.9); }
+
+/* [디자인 추가] 풀스크린 라이트박스 오버레이 창 */
+.lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 9999; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+.lightbox-overlay img { max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+
 .vote-zone { display:flex; justify-content:center; gap:15px; margin-bottom:30px; }
 .btn-vote { padding:10px 20px; border-radius:20px; border:1px solid var(--bd); background: var(--bg1); font-size:14px; font-weight:500; display:flex; align-items:center; gap:6px; }
 .btn-vote:hover { background: var(--bg2); }
@@ -88,7 +108,6 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .cmt-bottom { display:flex; justify-content:space-between; align-items:flex-end; margin-top:2px; }
 .cmt-body { line-height:1.5; font-size:14.5px; flex:1; }
 
-/* 댓글 전용 개추 비추 디자인 스타일 */
 .cmt-votes { display:flex; gap:8px; font-size:12px; margin-left:10px; }
 .cmt-vote-btn { background:var(--bg1); border:1px solid var(--bd); padding:2px 8px; border-radius:12px; display:flex; align-items:center; gap:3px; color:var(--tx1); font-size:11px; }
 .cmt-vote-btn:hover { background:var(--bg2); }
@@ -153,7 +172,11 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
           <span><i class="ti ti-eye"></i> <span id="d-views">0</span></span>
         </div>
       </div>
+      
+      <div id="d-images" class="post-images-container"></div>
+      
       <div id="d-body" class="post-body">내용</div>
+      
       <div class="vote-zone">
         <button class="btn-vote up" onclick="vote('up')"><i class="ti ti-thumb-up"></i> 개추 <span id="d-up">0</span></button>
         <button class="btn-vote down" onclick="vote('down')"><i class="ti ti-thumb-down"></i> 비추 <span id="d-down">0</span></button>
@@ -186,6 +209,17 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
         <label for="title">제목</label>
         <input type="text" id="title" placeholder="제목을 입력하세요" />
       </div>
+      
+      <div class="form-group">
+        <label>사진 첨부 (최대 5장, 장당 5MB)</label>
+        <div id="dropzone" class="upload-dropzone">
+          <i class="ti ti-photo-plus"></i>
+          <span>클릭하거나 이미지를 이 영역에 드래그 앤 드롭 하세요.</span>
+          <input type="file" id="fileInput" accept="image/*" multiple style="display:none;" />
+        </div>
+        <div id="previewGrid" class="preview-grid"></div>
+      </div>
+
       <div class="form-group">
         <label for="body">내용</label>
         <textarea id="body" rows="10" placeholder="커뮤니티 이용규칙을 준수하여 내용을 작성해 주세요."></textarea>
@@ -256,8 +290,11 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 
 <button class="fab" id="fabBtn" onclick="clickFab()"><i class="ti ti-plus"></i></button>
 
+<div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="확대 이미지" />
+</div>
+
 <script>
-// ★ 고유 기기값 보관용 식별자 취득 (브라우저 중복 추천 제어용)
 let deviceUuid = localStorage.getItem('vote_uuid');
 if (!deviceUuid) {
   deviceUuid = 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -272,10 +309,15 @@ let currentPostId = null;
 
 let currentUser = { isLoggedIn: false, username: '', nickname: '', role: 'USER' };
 
+// 업로드 대기 이미지를 보관하는 글로벌 가상 전송 배열 세트
+let attachedImages = [];
+
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   checkLoginStatus();
   loadPosts();
+  initUploadEvents();
+  initLightboxKeyboard();
 });
 
 function initTheme() {
@@ -334,7 +376,6 @@ async function apiFetch(url, options = {}) {
     throw new Error('서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.');
   }
 
-  // 토큰 만료 시 자동 로그아웃
   if (res.status === 401) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -401,6 +442,10 @@ function goHome() { showView('list'); }
 function clickFab() {
   if(!currentUser.isLoggedIn) { alert('로그인이 필요합니다.'); toggleAuthBox(true); showView('auth'); return; }
   document.getElementById('title').value = ''; document.getElementById('body').value = ''; document.getElementById('w-tag').value = '잡담';
+  
+  // 글쓰기 전환 시 첨부 배열 리셋 초기화
+  attachedImages = [];
+  renderUploadPreviews();
   showView('write');
 }
 
@@ -430,11 +475,16 @@ async function loadPosts() {
       const li = document.createElement('li');
       const tagText = p.tag || '잡담';
       const tagColor = tagText === '공지' ? 'var(--hot)' : 'var(--ac)';
+      
+      // [기능 구현] 이미지가 첨부되어 있다면 타이틀 옆에 📷 아이콘 노출 제어
+      const imgIcon = p.has_img === 1 ? ' <i class="ti ti-camera" style="font-size:14px;color:var(--tx1);margin-left:3px;vertical-align:middle;"></i>' : '';
+
       li.innerHTML = `
         <span class="t">
           ${p.hot === 1 ? '<span class="hot-badge">인기</span>' : ''}
           <span style="color: ${tagColor}; font-weight:700; margin-right:5px;">[${esc(tagText)}]</span>
           ${esc(p.title)}
+          ${imgIcon}
           ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
         </span>
         <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
@@ -469,6 +519,19 @@ async function openPost(id) {
     document.getElementById('d-up').textContent = d.post.up;
     document.getElementById('d-down').textContent = d.post.down;
 
+    // [기능 구현] 게시물 상세 페이지 본문 위에 바인딩된 이미지 그리기 
+    const imgContainer = document.getElementById('d-images');
+    imgContainer.innerHTML = '';
+    if (d.images && d.images.length > 0) {
+      d.images.forEach(base64Src => {
+        const imgNode = document.createElement('img');
+        imgNode.src = base64Src;
+        imgNode.alt = "첨부사진";
+        imgNode.onclick = () => openLightbox(base64Src);
+        imgContainer.appendChild(imgNode);
+      });
+    }
+
     document.getElementById('d-admin-del').style.display = (currentUser.isLoggedIn && currentUser.role === 'ADMIN') ? 'flex' : 'none';
 
     renderComments(d.comments);
@@ -477,7 +540,6 @@ async function openPost(id) {
   } catch(e) { alert(e.message); }
 }
 
-// ★ 댓글 목록 로드 시 추천/비추천 버튼 컴포넌트 추가 연동
 function renderComments(comments) {
   const ul = document.getElementById('clist');
   ul.innerHTML = '';
@@ -517,10 +579,11 @@ async function submitPost() {
   if(!title || !body) return alert('모두 채워주세요.');
 
   try {
+    // [기능 구현] 이미지가 첨부되어 있는 배열(attachedImages)을 Body에 실어 함께 전송
     await apiFetch('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, tag })
+      body: JSON.stringify({ title, body, tag, images: attachedImages })
     });
     alert('등록되었습니다.'); curPage = 1; await loadPosts(); goHome();
   } catch(e) { alert(e.message); }
@@ -541,13 +604,12 @@ async function submitComment() {
   } catch(e) { alert(e.message); }
 }
 
-// ★ 게시글 개추/비추천 중복 차단 요청 처리
 async function vote(type) {
   try {
     const d = await apiFetch(`/api/posts/${currentPostId}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, uuid: deviceUuid }) // 고유 브라우저 식별값 전송
+      body: JSON.stringify({ type, uuid: deviceUuid })
     });
     document.getElementById('d-up').textContent = d.up;
     document.getElementById('d-down').textContent = d.down;
@@ -555,7 +617,6 @@ async function vote(type) {
   } catch(e) { alert(e.message); }
 }
 
-// ★ 댓글 추천/비추천 중복 차단 요청 처리
 async function voteComment(commentId, type) {
   try {
     await apiFetch(`/api/comments/${commentId}/vote`, {
@@ -564,7 +625,7 @@ async function voteComment(commentId, type) {
       body: JSON.stringify({ type, uuid: deviceUuid })
     });
     alert('댓글에 의견이 반영되었습니다.');
-    await openPost(currentPostId); // 새로고침 리로드
+    await openPost(currentPostId);
   } catch(e) { alert(e.message); }
 }
 
@@ -591,6 +652,97 @@ async function loadStats() {
     document.getElementById('sttotal').textContent = s.total;
     document.getElementById('stcmt').textContent = s.comments;
   } catch(e) {}
+}
+
+// ── [신규 추가] 드래그 앤 드롭 & 파일 첨부 비즈니스 로직 핸들러 영역 ──────
+function initUploadEvents() {
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropzone.onclick = () => fileInput.click();
+
+  dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+  dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+  dropzone.ondrop = (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  };
+
+  fileInput.onchange = (e) => {
+    handleFiles(e.target.files);
+    fileInput.value = ''; // 동일 파일 재선택 가능 처리
+  };
+}
+
+function handleFiles(files) {
+  if (!files.length) return;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      continue;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert(`장당 최대 용량인 5MB를 초과했습니다: ${file.name}`);
+      continue;
+    }
+    if (attachedImages.length >= 5) {
+      alert('사진은 최대 5장까지만 등록할 수 있습니다.');
+      break;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (attachedImages.length < 5) {
+        attachedImages.push(e.target.result);
+        renderUploadPreviews();
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function renderUploadPreviews() {
+  const grid = document.getElementById('previewGrid');
+  grid.innerHTML = '';
+
+  attachedImages.forEach((base64Data, idx) => {
+    const div = document.createElement('div');
+    div.className = 'preview-item';
+    div.innerHTML = `
+      <img src="${base64Data}" alt="미리보기" />
+      <button type="button" class="btn-del" onclick="removeAttachedImage(${idx})"><i class="ti ti-x"></i></button>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function removeAttachedImage(index) {
+  attachedImages.splice(index, 1);
+  renderUploadPreviews();
+}
+
+// ── [신규 추가] 이미지 확대 라이트박스 로직 ───────────────────────────────────
+function openLightbox(src) {
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+  lightboxImg.src = src;
+  lightbox.style.display = 'flex';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+}
+
+function initLightboxKeyboard() {
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeLightbox();
+    }
+  });
 }
 
 let searchTimer;
