@@ -76,7 +76,8 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 .post-meta { display:flex; gap:14px; font-size:13px; color: var(--tx2); }
 .post-body { font-size:16px; line-height:1.7; white-space:pre-wrap; margin-bottom:30px; min-height:120px; }
 
-.post-images-container { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; width: 100%; }
+/* 이미지 본문 출력 컨테이너 */
+.post-images-container { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; margin-bottom: 20px; width: 100%; }
 .post-images-container img { max-width: 100%; height: auto; border-radius: 8px; cursor: zoom-in; object-fit: contain; border: 1px solid var(--bd); max-height: 550px; display: block; }
 
 .upload-dropzone { border: 2px dashed var(--bd2); padding: 24px; border-radius: 8px; text-align: center; background: var(--bg1); cursor: pointer; transition: 0.2s; color: var(--tx1); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -499,6 +500,7 @@ async function loadPosts() {
 function prevPage() { if(curPage > 1) { curPage--; loadPosts(); } }
 function nextPage() { curPage++; loadPosts(); }
 
+// [교정 완료] 게시글 상세 오픈 시 d.images 배열을 순회하며 본문 상단 공간에 출력 처리
 async function openPost(id) {
   try {
     const d = await apiFetch(`/api/posts/${id}`);
@@ -515,8 +517,10 @@ async function openPost(id) {
     document.getElementById('d-up').textContent = d.post.up;
     document.getElementById('d-down').textContent = d.post.down;
 
+    // 본문 컨테이너 초기화 후 바인딩
     const imgContainer = document.getElementById('d-images');
     imgContainer.innerHTML = '';
+    
     if (d.images && d.images.length > 0) {
       d.images.forEach(base64Src => {
         const imgNode = document.createElement('img');

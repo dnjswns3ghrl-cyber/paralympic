@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'my_super_secret_key_change_in_prod
 
 app.use(cors());
 
-// [교정] Base64 이미지 대용량 패킷이 잘리지 않도록 JSON 파서 리밋을 50MB로 확장
+// 이미지 패킷 유실 방지를 위한 용량 한도 확장
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -33,7 +33,7 @@ async function initDB() {
     db = new SQL.Database();
   }
 
-  // 테이블 스키마 생성
+  // 테이블 스키마 정의
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -93,7 +93,7 @@ async function initDB() {
     UNIQUE(comment_id, uuid)
   )`);
 
-  // 하위 호환성 마이그레이션
+  // 마이그레이션 확인
   const migrations = [
     ["SELECT tag     FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN tag     TEXT    NOT NULL DEFAULT '잡담'"],
     ["SELECT user_id FROM posts    LIMIT 1", "ALTER TABLE posts    ADD COLUMN user_id INTEGER"],
@@ -141,7 +141,6 @@ function query(sql, params = []) {
   return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
 }
 
-// [교정] 데이터 삽입 후 새로 갱신된 행의 고유 ID(rowid)를 안전하게 반환하도록 수정
 function run(sql, params = []) {
   db.run(sql, params);
   saveDB();
@@ -168,7 +167,7 @@ function isAdmin(req, res, next) {
   next();
 }
 
-// ── API 라우터 영역 ──────────────────────────────────────────────────────────
+// ── API 라우팅 ──────────────────────────────────────────────────────────────
 
 app.post('/api/auth/register', (req, res) => {
   const { username, password, nickname } = req.body;
@@ -194,7 +193,6 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ success: true, token, user: { username: user.username, nickname: user.nickname, role: user.role } });
 });
 
-// [교정] 전개 연산자(...flat()) 문법 오류를 제거하고 단일 파라미터 배열 구조로 안정화
 app.get('/api/posts', (req, res) => {
   const { tab='all', page=1, q='', tag='' } = req.query;
   const perPage = 10, offset = (parseInt(page)-1) * perPage;
@@ -205,7 +203,6 @@ app.get('/api/posts', (req, res) => {
   
   const total = query(`SELECT COUNT(*) as cnt FROM posts WHERE ${where}`, params)[0]?.cnt || 0;
   
-  // 파라미터를 단일 배열로 정렬하여 바인딩
   const queryParams = [...params, perPage, offset];
   const posts = query(
     `SELECT p.*, (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
@@ -215,6 +212,7 @@ app.get('/api/posts', (req, res) => {
   res.json({ posts, total, page: parseInt(page), perPage });
 });
 
+// 게시글 단건 조회 (이미지 목록 정상 맵핑)
 app.get('/api/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
   db.run('UPDATE posts SET views=views+1 WHERE id=?', [id]);
@@ -224,15 +222,14 @@ app.get('/api/posts/:id', (req, res) => {
   if (!posts.length) return res.status(404).json({ error: '존재하지 않는 게시글입니다.' });
   
   const comments = query('SELECT * FROM comments WHERE post_id=? ORDER BY id ASC', [id]);
-  
-  // post_images 테이블에서 해당 글의 이미지 바이너리 목록을 명확히 배열로 매핑
   const imageRows = query('SELECT img_data FROM post_images WHERE post_id=? ORDER BY id ASC', [id]);
+  
+  // 이미지 데이터가 담긴 순수 base64 배열로 추출
   const images = imageRows.map(row => row.img_data);
 
   res.json({ post: posts[0], comments, images });
 });
 
-// [교정] 게시글 등록 시 정상적인 반환 ID 값을 검증하여 유실 없이 이미지 연동 처리
 app.post('/api/posts', authenticateToken, (req, res) => {
   const { title, body, tag='잡담', images=[] } = req.body;
   if (!title?.trim() || !body?.trim())
@@ -250,10 +247,9 @@ app.post('/api/posts', authenticateToken, (req, res) => {
       }
       saveDB();
     }
-
     res.status(201).json({ id });
   } catch (err) {
-    console.error("🚨 게시글 등록 중 내부 예외 발생:", err);
+    console.error("🚨 게시글 등록 오류:", err);
     res.status(500).json({ error: '데이터베이스 처리 중 오류가 발생했습니다.' });
   }
 });
