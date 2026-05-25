@@ -21,6 +21,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let db;
 
+// 한국 시간(KST = UTC+9) 문자열 반환
+function kstNow() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().replace('T', ' ').substring(0, 19);
+}
+// KST 오늘 날짜 (YYYY-MM-DD)
+function kstToday() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().substring(0, 10);
+}
+
 async function initDB() {
   const SQL = await initSqlJs();
   const dataDir = path.join(__dirname, 'data');
@@ -249,8 +262,8 @@ app.post('/api/posts', authenticateToken, (req, res) => {
 
   try {
     // run()이 null을 반환할 수 있으므로 postId를 직접 조회
-    db.run('INSERT INTO posts (user_id,title,body,tag,nick,has_img) VALUES (?,?,?,?,?,?)',
-      [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag]);
+    db.run('INSERT INTO posts (user_id,title,body,tag,nick,has_img,created_at) VALUES (?,?,?,?,?,?,?)',
+      [req.user.id, title.trim(), body.trim(), tag, req.user.nickname, hasImgFlag, kstNow()]);
     const postId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     saveDB();
 
@@ -281,8 +294,8 @@ app.put('/api/posts/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ error: '수정 권한이 없습니다.' });
 
   db.run(
-    "UPDATE posts SET title=?, body=?, tag=?, updated_at=datetime('now','localtime') WHERE id=?",
-    [title.trim(), body.trim(), tag || '잡담', id]
+    'UPDATE posts SET title=?, body=?, tag=?, updated_at=? WHERE id=?',
+    [title.trim(), body.trim(), tag || '잡담', kstNow(), id]
   );
   saveDB();
   res.json({ success: true });
@@ -318,8 +331,9 @@ app.post('/api/posts/:id/comments', authenticateToken, (req, res) => {
   const postId = parseInt(req.params.id);
   const { body } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: '댓글 내용을 적어주세요.' });
-  run('INSERT INTO comments (post_id,user_id,nick,body) VALUES (?,?,?,?)',
-    [postId, req.user.id, req.user.nickname, body.trim()]);
+  db.run('INSERT INTO comments (post_id,user_id,nick,body,created_at) VALUES (?,?,?,?,?)',
+    [postId, req.user.id, req.user.nickname, body.trim(), kstNow()]);
+  saveDB();
   res.status(201).json({ success: true });
 });
 
@@ -371,10 +385,22 @@ app.get('/api/users/by-nick/:nick/posts', (req, res) => {
 });
 
 app.get('/api/stats', (req, res) => {
+  const today = kstToday();
   res.json({
     total:    query("SELECT COUNT(*) as cnt FROM posts")[0]?.cnt || 0,
-    today:    query("SELECT COUNT(*) as cnt FROM posts WHERE date(created_at)=date('now','localtime')")[0]?.cnt || 0,
+    today:    query("SELECT COUNT(*) as cnt FROM posts WHERE date(created_at)=?", [today])[0]?.cnt || 0,
     comments: query("SELECT COUNT(*) as cnt FROM comments")[0]?.cnt || 0,
+  });
+});
+
+// 개인 통계 API (로그인한 유저 본인)
+app.get('/api/my-stats', authenticateToken, (req, res) => {
+  const nick = req.user.nickname;
+  const today = kstToday();
+  res.json({
+    total:    query("SELECT COUNT(*) as cnt FROM posts WHERE nick=?", [nick])[0]?.cnt || 0,
+    today:    query("SELECT COUNT(*) as cnt FROM posts WHERE nick=? AND date(created_at)=?", [nick, today])[0]?.cnt || 0,
+    comments: query("SELECT COUNT(*) as cnt FROM comments WHERE nick=?", [nick])[0]?.cnt || 0,
   });
 });
 

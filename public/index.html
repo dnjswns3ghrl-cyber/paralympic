@@ -375,11 +375,11 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
       <p id="u-id" style="font-size:13px; color:var(--tx2); margin-bottom:20px;">@username</p>
       
       <div style="background:var(--bg1); border-radius:8px; padding:15px; display:flex; justify-content:space-around; margin-bottom:25px; font-size:13px;">
-        <div><div style="color:var(--tx2);margin-bottom:4px">오늘 쓴 글</div><b id="sttoday" style="font-size:16px">0</b></div>
+        <div><div class="stat-label" style="color:var(--tx2);margin-bottom:4px">오늘 쓴 글</div><b id="sttoday" style="font-size:16px">0</b></div>
         <div style="border-left:1px solid var(--bd)"></div>
-        <div><div style="color:var(--tx2);margin-bottom:4px">전체 게시글</div><b id="sttotal" style="font-size:16px">0</b></div>
+        <div><div class="stat-label" style="color:var(--tx2);margin-bottom:4px">전체 게시글</div><b id="sttotal" style="font-size:16px">0</b></div>
         <div style="border-left:1px solid var(--bd)"></div>
-        <div><div style="color:var(--tx2);margin-bottom:4px">누적 댓글</div><b id="stcmt" style="font-size:16px">0</b></div>
+        <div><div class="stat-label" style="color:var(--tx2);margin-bottom:4px">누적 댓글</div><b id="stcmt" style="font-size:16px">0</b></div>
       </div>
       <button class="btn-primary" style="background:var(--hot-bg); color:var(--hot-tx); border:1px solid var(--hot)" onclick="logout()">로그아웃</button>
     </div>
@@ -903,10 +903,26 @@ async function deleteCommentByAdmin(cmtId) {
 
 async function loadStats() {
   try {
-    const s = await apiFetch('/api/stats');
+    // 개인 통계 (로그인 시) / 사이트 전체 통계 (비로그인 시)
+    const url = currentUser.isLoggedIn ? '/api/my-stats' : '/api/stats';
+    const s = await apiFetch(url);
     document.getElementById('sttoday').textContent = s.today;
     document.getElementById('sttotal').textContent = s.total;
     document.getElementById('stcmt').textContent = s.comments;
+
+    // 항목 라벨도 바꿔주기
+    const labels = document.querySelectorAll('#v-user .stat-label');
+    if (labels.length >= 3) {
+      if (currentUser.isLoggedIn) {
+        labels[0].textContent = '오늘 내가 쓴 글';
+        labels[1].textContent = '내 전체 게시글';
+        labels[2].textContent = '내 누적 댓글';
+      } else {
+        labels[0].textContent = '오늘 게시글';
+        labels[1].textContent = '전체 게시글';
+        labels[2].textContent = '누적 댓글';
+      }
+    }
   } catch(e) {}
 }
 
