@@ -171,7 +171,7 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
   </div>
 
   <div id="v-detail" class="view" style="display:none">
-    <button onclick="goHome()" style="font-size:14px; color:var(--tx1); margin-bottom:14px; display:flex; align-items:center; gap:4px;"><i class="ti ti-arrow-left"></i> 목록으로</button>
+    <button onclick="goBack()" style="font-size:14px; color:var(--tx1); margin-bottom:14px; display:flex; align-items:center; gap:4px;"><i class="ti ti-arrow-left"></i> 목록으로</button>
     <div class="card">
       <div class="post-header">
         <h2 id="d-title">제목</h2>
@@ -470,13 +470,35 @@ function logout() {
   currentUser.isLoggedIn = false; alert('로그아웃 되었습니다.'); goHome();
 }
 
-function showView(id) {
+function showView(id, pushHistory = true) {
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
   document.getElementById(`v-${id}`).style.display = 'block';
   document.getElementById('fabBtn').style.display = (id === 'write' || id === 'edit' || id === 'auth' || id === 'user') ? 'none' : 'flex';
   window.scrollTo(0,0);
+
+  // URL 주소 업데이트
+  if (pushHistory) {
+    if (id === 'list') {
+      history.pushState({ view: 'list' }, '', '/');
+    } else if (id === 'detail' && currentPostId) {
+      history.pushState({ view: 'detail', postId: currentPostId }, '', `/post/${currentPostId}`);
+    } else if (id === 'write') {
+      history.pushState({ view: 'write' }, '', '/write');
+    } else {
+      // auth, user, edit 등은 주소 변경 없이 그냥 현재 유지
+    }
+  }
 }
-function goHome() { showView('list'); }
+
+function goHome() {
+  showView('list');
+  loadPosts();
+}
+
+// 목록으로 돌아가기 (뒤로가기 버튼용 — history 중복 push 방지)
+function goBack() {
+  history.back();
+}
 
 function clickFab() {
   if(!currentUser.isLoggedIn) { alert('로그인이 필요합니다.'); toggleAuthBox(true); showView('auth'); return; }
@@ -554,7 +576,7 @@ function prevPage() { if(curPage > 1) { curPage--; loadPosts(); } }
 function nextPage() { curPage++; loadPosts(); }
 
 // [교정 완료] 게시글 상세 오픈 시 d.images 배열을 순회하며 본문 상단 공간에 출력 처리
-async function openPost(id) {
+async function openPost(id, pushHistory = true) {
   try {
     const d = await apiFetch(`/api/posts/${id}`);
     currentPostId = d.post.id;
@@ -615,7 +637,7 @@ async function openPost(id) {
 
     renderComments(d.comments);
     document.getElementById('cinp').value = '';
-    showView('detail');
+    showView('detail', pushHistory);
   } catch(e) { alert(e.message); }
 }
 
@@ -890,6 +912,54 @@ document.getElementById('sinp').addEventListener('input', function() {
   searchTimer = setTimeout(() => { curPage = 1; loadPosts(); showView('list'); }, 300);
 });
 document.getElementById('cinp').addEventListener('keydown', e => { if(e.key==='Enter') submitComment(); });
+
+// ── 클라이언트 라우터 ────────────────────────────────────────────────────────
+
+// 뒤로가기 / 앞으로가기 버튼 처리
+window.addEventListener('popstate', (e) => {
+  const state = e.state;
+  if (!state) {
+    // 히스토리 스택 맨 처음 (초기 페이지)
+    showView('list', false);
+    loadPosts();
+    return;
+  }
+  if (state.view === 'list') {
+    showView('list', false);
+    loadPosts();
+  } else if (state.view === 'detail' && state.postId) {
+    openPost(state.postId, false);
+  } else if (state.view === 'write') {
+    showView('write', false);
+  } else {
+    showView('list', false);
+    loadPosts();
+  }
+});
+
+// 페이지 최초 진입 시 URL 파싱 (직접 /post/123 으로 접속했을 때)
+async function handleInitialRoute() {
+  const pathname = window.location.pathname;
+  const postMatch = pathname.match(/^\/post\/(\d+)$/);
+
+  if (postMatch) {
+    // /post/123 으로 직접 접속
+    const postId = parseInt(postMatch[1]);
+    await loadPosts();
+    // 히스토리 초기 상태를 list로 세팅 (뒤로가기 시 목록으로)
+    history.replaceState({ view: 'list' }, '', '/');
+    await openPost(postId);
+  } else if (pathname === '/write') {
+    history.replaceState({ view: 'list' }, '', '/');
+    loadPosts();
+  } else {
+    // 일반 메인 진입
+    history.replaceState({ view: 'list' }, '', '/');
+    loadPosts();
+  }
+}
+
+handleInitialRoute();
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(s) {
