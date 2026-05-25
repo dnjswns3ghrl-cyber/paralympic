@@ -345,6 +345,31 @@ app.delete('/api/admin/comments/:id', authenticateToken, isAdmin, (req, res) => 
   res.json({ success: true });
 });
 
+// 유저 프로필 조회 (닉네임 기준)
+app.get('/api/users/by-nick/:nick', (req, res) => {
+  const nick = req.params.nick;
+  const user = query('SELECT id, username, nickname, role, created_at FROM users WHERE nickname=?', [nick]);
+  const postCount = query('SELECT COUNT(*) as cnt FROM posts WHERE nick=?', [nick])[0]?.cnt || 0;
+  const commentCount = query('SELECT COUNT(*) as cnt FROM comments WHERE nick=?', [nick])[0]?.cnt || 0;
+  if (!user.length) {
+    // 회원 탈퇴 or 익명 → 기본 정보만 반환
+    return res.json({ nickname: nick, username: null, postCount, commentCount });
+  }
+  res.json({ nickname: user[0].nickname, username: user[0].username, role: user[0].role, postCount, commentCount });
+});
+
+// 특정 닉네임의 글 목록 검색
+app.get('/api/users/by-nick/:nick/posts', (req, res) => {
+  const nick = req.params.nick;
+  const posts = query(
+    `SELECT id, title, tag, up, created_at,
+     (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) AS comment_count
+     FROM posts p WHERE nick=? ORDER BY id DESC LIMIT 20`,
+    [nick]
+  );
+  res.json({ posts });
+});
+
 app.get('/api/stats', (req, res) => {
   res.json({
     total:    query("SELECT COUNT(*) as cnt FROM posts")[0]?.cnt || 0,

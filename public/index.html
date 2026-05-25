@@ -128,6 +128,64 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
 /* 수정 뷰 */
 #v-edit .card { /* 글쓰기와 동일 스타일 재사용 */ }
 .edited-mark { font-size: 11px; color: var(--tx2); margin-left: 8px; }
+
+/* 닉네임 클릭 팝업 */
+.nick-popup {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45);
+}
+.nick-popup-box {
+  background: var(--bg0); border-radius: 14px;
+  width: 300px; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  animation: popIn .15s ease;
+}
+@keyframes popIn { from { transform: scale(.92); opacity:0; } to { transform: scale(1); opacity:1; } }
+.nick-popup-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--bd);
+}
+.nick-popup-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--ac-bg); color: var(--ac);
+  font-size: 22px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-weight: 700;
+}
+.nick-popup-info { flex: 1; min-width: 0; }
+.nick-popup-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+.nick-popup-id { font-size: 12px; color: var(--tx2); }
+.nick-popup-stats {
+  display: flex; justify-content: space-around;
+  padding: 14px 20px; border-bottom: 1px solid var(--bd);
+  font-size: 12px; color: var(--tx2);
+}
+.nick-popup-stats b { display: block; font-size: 18px; color: var(--tx0); margin-bottom: 2px; }
+.nick-popup-menu { list-style: none; padding: 8px 0; }
+.nick-popup-menu li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px; font-size: 14px; cursor: pointer;
+  transition: background .1s; color: var(--tx0);
+}
+.nick-popup-menu li:hover { background: var(--bg1); }
+.nick-popup-menu li i { font-size: 18px; color: var(--tx2); width: 22px; }
+.nick-popup-menu li.danger { color: var(--hot); }
+.nick-popup-menu li.danger i { color: var(--hot); }
+.nick-popup-close {
+  width: 100%; padding: 12px; text-align: center;
+  font-size: 13px; color: var(--tx2); cursor: pointer;
+  border-top: 1px solid var(--bd); background: none;
+  transition: background .1s;
+}
+.nick-popup-close:hover { background: var(--bg1); }
+
+/* 목록 닉네임 */
+.post-nick {
+  font-size: 11px; color: var(--tx2); margin-left: 6px;
+  cursor: pointer; flex-shrink: 0;
+}
+.post-nick:hover { color: var(--ac); text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -334,6 +392,30 @@ main { width:100%; max-width:900px; padding:20px; flex:1; padding-bottom:100px; 
   <img id="lightboxImg" src="" alt="확대 이미지" />
 </div>
 
+<!-- 닉네임 팝업 -->
+<div id="nickPopup" class="nick-popup" style="display:none" onclick="closeNickPopup(event)">
+  <div class="nick-popup-box" onclick="event.stopPropagation()">
+    <div class="nick-popup-header">
+      <div class="nick-popup-avatar" id="np-avatar">?</div>
+      <div class="nick-popup-info">
+        <div class="nick-popup-name" id="np-name">닉네임</div>
+        <div class="nick-popup-id" id="np-id">@username</div>
+      </div>
+    </div>
+    <div class="nick-popup-stats">
+      <div><b id="np-posts">0</b>게시글</div>
+      <div><b id="np-comments">0</b>댓글</div>
+    </div>
+    <ul class="nick-popup-menu" id="np-menu">
+      <li onclick="npViewPosts()"><i class="ti ti-pencil"></i> 작성글 검색</li>
+      <li onclick="npViewComments()"><i class="ti ti-message"></i> 작성댓글 검색</li>
+      <li id="np-ban-nick" style="display:none" onclick="npBanNick()"><i class="ti ti-ban"></i> 차단 (닉네임)</li>
+      <li id="np-ban-code" style="display:none" class="danger" onclick="npBanCode()"><i class="ti ti-shield-x"></i> 차단 (식별코드)</li>
+    </ul>
+    <button class="nick-popup-close" onclick="closeNickPopup()">닫기</button>
+  </div>
+</div>
+
 <script>
 let deviceUuid = localStorage.getItem('vote_uuid');
 if (!deviceUuid) {
@@ -536,9 +618,15 @@ function makePostLi(p, isPinned) {
       ${imgIcon}
       ${p.comment_count > 0 ? `<span style="color:var(--ac);font-size:13px;margin-left:5px;font-weight:700;">[${p.comment_count}]</span>` : ''}
     </span>
+    <span class="post-nick" data-nick="${esc(p.nick)}">${esc(p.nick)}</span>
     <span class="n"><i class="ti ti-thumb-up" style="font-size:10px"></i> ${p.up}</span>
   `;
   li.onclick = () => openPost(p.id);
+  // 닉네임 클릭 시 팝업 (글 열기 이벤트와 분리)
+  li.querySelector('.post-nick').addEventListener('click', e => {
+    e.stopPropagation();
+    openNickPopup(p.nick, p.user_id);
+  });
   return li;
 }
 
@@ -587,6 +675,8 @@ async function openPost(id, pushHistory = true) {
 
     document.getElementById('d-title').innerHTML = `<span style="color: ${tagColor}; font-weight:700; margin-right:6px;">[${esc(tagText)}]</span>` + esc(d.post.title);
     document.getElementById('d-nick').textContent = d.post.nick;
+    document.getElementById('d-nick').style.cursor = 'pointer';
+    document.getElementById('d-nick').onclick = () => openNickPopup(d.post.nick, d.post.user_id);
     document.getElementById('d-date').textContent = fmtDate(d.post.created_at);
     document.getElementById('d-views').textContent = d.post.views;
     document.getElementById('d-body').textContent = d.post.body;
@@ -960,6 +1050,132 @@ async function handleInitialRoute() {
 }
 
 handleInitialRoute();
+
+// ── 닉네임 팝업 ─────────────────────────────────────────────────────────────
+let _npNick = '';
+let _npPosts = [];
+let _bannedNicks = JSON.parse(localStorage.getItem('banned_nicks') || '[]');
+let _bannedCodes = JSON.parse(localStorage.getItem('banned_codes') || '[]');
+
+async function openNickPopup(nick, userId) {
+  _npNick = nick;
+  document.getElementById('np-avatar').textContent = nick.charAt(0).toUpperCase();
+  document.getElementById('np-name').textContent = nick;
+  document.getElementById('np-id').textContent = '정보 로딩 중...';
+  document.getElementById('np-posts').textContent = '-';
+  document.getElementById('np-comments').textContent = '-';
+  document.getElementById('nickPopup').style.display = 'flex';
+
+  // 관리자만 차단 메뉴 표시
+  const isAdmin = currentUser.isLoggedIn && currentUser.role === 'ADMIN';
+  document.getElementById('np-ban-nick').style.display = isAdmin ? 'flex' : 'none';
+  document.getElementById('np-ban-code').style.display = isAdmin ? 'flex' : 'none';
+
+  try {
+    const d = await apiFetch(`/api/users/by-nick/${encodeURIComponent(nick)}`);
+    document.getElementById('np-id').textContent = d.username ? `@${d.username}` : '(비회원/탈퇴)';
+    document.getElementById('np-posts').textContent = d.postCount;
+    document.getElementById('np-comments').textContent = d.commentCount;
+    // 관리자용 차단 코드: user_id 또는 닉네임 해시
+    document.getElementById('np-ban-code').dataset.uid = d.username || '';
+  } catch(e) {
+    document.getElementById('np-id').textContent = '정보 없음';
+  }
+}
+
+function closeNickPopup(e) {
+  if (!e || e.target === document.getElementById('nickPopup')) {
+    document.getElementById('nickPopup').style.display = 'none';
+  }
+}
+
+// 작성글 검색
+async function npViewPosts() {
+  document.getElementById('nickPopup').style.display = 'none';
+  try {
+    const d = await apiFetch(`/api/users/by-nick/${encodeURIComponent(_npNick)}/posts`);
+    _npPosts = d.posts;
+    // 검색창에 닉네임 입력 후 글 목록 필터링
+    searchQ = '';
+    curPage = 1;
+    curTab = 'all';
+    curTag = '전체';
+    document.querySelectorAll('.tab').forEach(t => { if(!t.classList.contains('tag-tab')) t.classList.remove('active'); });
+    document.getElementById('tab-all').classList.add('active');
+    document.querySelectorAll('.tag-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('ttab-전체').classList.add('active');
+
+    // 직접 목록 렌더링
+    const ul = document.getElementById('plist');
+    ul.innerHTML = '';
+    if (!d.posts.length) {
+      ul.innerHTML = `<li style="justify-content:center;color:var(--tx2);font-size:14px;padding:30px 0;">${esc(_npNick)}님의 게시글이 없습니다.</li>`;
+    } else {
+      d.posts.forEach(p => ul.appendChild(makePostLi(p, false)));
+    }
+    document.getElementById('pnum').textContent = `${_npNick}님의 글`;
+    document.getElementById('pbtn-prev').disabled = true;
+    document.getElementById('pbtn-next').disabled = true;
+    showView('list');
+
+    // 상단에 안내 배너 표시
+    const banner = document.createElement('div');
+    banner.id = 'nick-search-banner';
+    banner.style.cssText = 'background:var(--ac-bg);color:var(--ac);padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;';
+    banner.innerHTML = `<span>📝 <b>${esc(_npNick)}</b>님의 게시글 ${d.posts.length}개</span><span style="cursor:pointer;font-weight:500;" onclick="clearNickSearch()">전체글 보기 ✕</span>`;
+    const existing = document.getElementById('nick-search-banner');
+    if (existing) existing.remove();
+    document.getElementById('v-list').prepend(banner);
+  } catch(e) { alert(e.message); }
+}
+
+function clearNickSearch() {
+  const b = document.getElementById('nick-search-banner');
+  if (b) b.remove();
+  loadPosts();
+}
+
+// 작성댓글 검색 (글 목록에서 해당 유저 댓글 있는 글만 표시)
+async function npViewComments() {
+  document.getElementById('nickPopup').style.display = 'none';
+  document.getElementById('sinp').value = _npNick;
+  searchQ = _npNick;
+  curPage = 1;
+  await loadPosts();
+  showView('list');
+
+  const banner = document.createElement('div');
+  banner.id = 'nick-search-banner';
+  banner.style.cssText = 'background:var(--bg2);color:var(--tx1);padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;';
+  banner.innerHTML = `<span>💬 <b>${esc(_npNick)}</b> 관련 검색 결과</span><span style="cursor:pointer;font-weight:500;" onclick="clearNickSearch()">전체글 보기 ✕</span>`;
+  const existing = document.getElementById('nick-search-banner');
+  if (existing) existing.remove();
+  document.getElementById('v-list').prepend(banner);
+}
+
+// 차단 (닉네임) — 관리자 전용
+function npBanNick() {
+  if (!confirm(`정말로 "${_npNick}" 닉네임을 차단하시겠습니까?`)) return;
+  if (!_bannedNicks.includes(_npNick)) {
+    _bannedNicks.push(_npNick);
+    localStorage.setItem('banned_nicks', JSON.stringify(_bannedNicks));
+  }
+  document.getElementById('nickPopup').style.display = 'none';
+  alert(`"${_npNick}" 닉네임이 차단되었습니다.`);
+}
+
+// 차단 (식별코드) — 관리자 전용
+function npBanCode() {
+  const uid = document.getElementById('np-ban-code').dataset.uid;
+  const code = uid || _npNick;
+  if (!confirm(`정말로 이 사용자(${code})를 식별코드로 차단하시겠습니까?`)) return;
+  if (!_bannedCodes.includes(code)) {
+    _bannedCodes.push(code);
+    localStorage.setItem('banned_codes', JSON.stringify(_bannedCodes));
+  }
+  document.getElementById('nickPopup').style.display = 'none';
+  alert(`사용자가 차단되었습니다.`);
+}
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(s) {
